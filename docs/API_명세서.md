@@ -283,7 +283,11 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
   "judge": {
     "invoice_no": "SM-2609-0044", "decision": "보완 요청",
     "reason": "원산지증명서의 송장번호는 SM-2609-0815이고 인보이스의 송장번호는 SM-2609-0044로 서로 다릅니다. …",
-    "mismatch_codes": ["CO_INVOICE_NO_MISMATCH"], "missing_documents": []
+    "mismatch_codes": ["CO_INVOICE_NO_MISMATCH"], "missing_documents": [],
+    "item_checks": [
+      {"kind": "PSR", "item": "FROZEN MACKEREL", "hs": "0303540000", "doc_value": "WO", "rule_value": "WO", "rule_text": "WO", "result": "충족"},
+      {"kind": "HS", "item": "FROZEN MACKEREL", "hs": "0303540000", "doc_value": "0303540000", "rule_value": "0303540000", "rule_text": null, "result": "같음"}
+    ]
   },
   "mismatches": [{"code": "CO_INVOICE_NO_MISMATCH", "stage": 2, "label": "원산지증명서 송장번호 ≠ 인보이스"}],
   "follow_up": {"kind": "보완_요청_초안", "text": "### 요청 메일 초안\n\n…"},
@@ -304,15 +308,35 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
 
 ### 4.1 `AgentJudge` — `judge`
 
-원산지_판정 노드 결과. 채점 정답지(`answer.json`)의 `answer`와 같은 5개 키다.
+원산지_판정 노드 결과. 앞의 5개 키는 채점 정답지(`answer.json`)의 `answer`와 같고, `item_checks`는 백엔드가 덧붙인다.
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `invoice_no` | string \| null | 인보이스 송장번호. 인보이스가 없으면 수출신고필증 송품장부호. 못 읽으면 null |
 | `decision` | `Decision` | 판정. 특혜 적용 · 보완 요청 · 미적용 · 검토 필요 |
-| `reason` | string | 1~2문장, 실제 값 포함 |
+| `reason` | string | 판정 이유 문장(실제 값 포함). `item_checks` 가 있으면 워크플로가 끝에 붙인 품목별 근거('PSR 품명: …', 'HS 품명: …')는 떼고 준다 |
 | `mismatch_codes` | string[] | 불일치 코드(§5). 없으면 []. 코드표에 없는 값이 와도 그대로 둔다 |
 | `missing_documents` | string[] | 빠진 서류(`RequiredDocument` 표기). 없으면 [] |
+| `item_checks` | `ItemCheck[]` | 품목별 PSR·HS 비교(§4.1-1). 비교할 게 없거나 2026-11-09 이전 결과면 [] |
+
+#### 4.1-1 `ItemCheck` — `judge.item_checks[]`
+
+워크플로 Match 노드 출력(인보이스 품목마다 다른 서류·품목 원산지 관리대장 값을 짝지은 것)에서 **백엔드가 계산한다**. LLM 문장을 읽지 않으므로 형식이 늘 같다.
+인보이스 품목마다 PSR 1줄(원산지증명서가 있을 때), HS 1줄(수출신고필증이 있을 때)이 품목 순서대로 온다.
+
+| 필드 | 타입 | PSR | HS |
+|---|---|---|---|
+| `kind` | `"PSR"` \| `"HS"` | | |
+| `item` | string | 인보이스 품명 | 〃 |
+| `hs` | string \| null | 인보이스 HS(숫자만) | 〃 |
+| `doc_value` | string \| null | 원산지증명서 결정기준(예: `CTH`) | 인보이스 HS 10자리 |
+| `rule_value` | string \| null | 관리대장 허용 기준(`allowed_criteria`, 예: `CTC, RVC 40%`) | 수출신고필증 HS 10자리 |
+| `rule_text` | string \| null | 관리대장의 협정 PSR 원문(`akfta_psr`) | null |
+| `result` | string | `충족` · `불충족` · `확인불가` · `비교 비대상` | `같음` · `6단위 같음` · `다름` · `확인불가` |
+
+- PSR `충족`은 `doc_value`가 `rule_value`를 쉼표로 나눈 항목 중 하나와 글자가 같을 때다(대소문자·따옴표 무시). 판정 프롬프트의 규칙과 같다.
+- PSR `비교 비대상`: 관리대장에 짝이 없는 품목, 또는 한-EU 원산지신고 건. `확인불가`: 원산지증명서 결정기준이 비어 있음.
+- HS `6단위 같음`: 앞 6자리(소호)는 같고 10자리가 다름(`CO_HS_MINOR_DIFF` 대상). `확인불가`: 한쪽 HS 가 비어 있음.
 
 ### 4.2 `AgentMismatch` — `mismatches[]`
 

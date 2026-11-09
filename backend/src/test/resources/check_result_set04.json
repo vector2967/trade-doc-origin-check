@@ -8,7 +8,11 @@
     "mismatch_codes": [
       "CO_INVOICE_NO_MISMATCH"
     ],
-    "missing_documents": []
+    "missing_documents": [],
+    "item_checks": [
+      {"kind": "PSR", "item": "FROZEN MACKEREL", "hs": "0303540000", "doc_value": "WO", "rule_value": "WO", "rule_text": "WO", "result": "충족"},
+      {"kind": "HS", "item": "FROZEN MACKEREL", "hs": "0303540000", "doc_value": "0303540000", "rule_value": "0303540000", "rule_text": null, "result": "같음"}
+    ]
   },
   "mismatches": [
     {

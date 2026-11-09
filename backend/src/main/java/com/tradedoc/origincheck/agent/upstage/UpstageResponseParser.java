@@ -6,6 +6,7 @@ import com.tradedoc.origincheck.agent.dto.AgentFollowUp;
 import com.tradedoc.origincheck.agent.dto.AgentJudge;
 import com.tradedoc.origincheck.agent.dto.AgentMismatch;
 import com.tradedoc.origincheck.agent.dto.Decision;
+import com.tradedoc.origincheck.agent.dto.ItemCheck;
 import com.tradedoc.origincheck.agent.dto.ExtractNode;
 import com.tradedoc.origincheck.agent.dto.FollowUpKind;
 import com.tradedoc.origincheck.agent.dto.meta.AgentExtractedMeta;
@@ -41,6 +42,8 @@ public class UpstageResponseParser {
 
     private static final Logger log = LoggerFactory.getLogger(UpstageResponseParser.class);
     private static final Pattern CITE = Pattern.compile("【[^】]*】");
+    /** 인보이스 품목마다 다른 서류·관리대장 값을 짝지어 주는 노드 ('Match - 매칭-1') */
+    private static final String MATCH_NODE_PREFIX = "Match";
     /** 판정 노드 5줄 출력의 키 */
     private static final Set<String> JUDGE_KEYS = Set.of("invoice_no", "reason", "mismatch_codes", "missing_documents", "decision");
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {
@@ -59,6 +62,7 @@ public class UpstageResponseParser {
         String jobId = str(resp.get("id"));
         AgentJudge judge = null;
         AgentFollowUp followUp = null;
+        List<ItemCheck> itemChecks = List.of();
         Map<String, List<Object>> extracted = new LinkedHashMap<>();
         Map<String, List<Object>> meta = new LinkedHashMap<>();
 
@@ -84,6 +88,12 @@ public class UpstageResponseParser {
                 if (branch != null && Decision.isKnown(branch.toString())) {
                     judge = judge.withDecision(Decision.fromLabel(branch.toString())); // 분기에 실제로 쓰인 결정값이 우선
                 }
+            } else if (name.startsWith(MATCH_NODE_PREFIX)) {
+                try {
+                    itemChecks = ItemCheck.fromMatch(parseObject(text, name));
+                } catch (RuntimeException e) { // 품목별 비교는 보조 정보라 못 만들어도 결과 전체를 실패시키지 않는다
+                    log.warn("Match 노드 출력으로 품목별 비교를 만들지 못함: {}", e.getMessage());
+                }
             } else if (ext.isPresent()) {
                 extracted.computeIfAbsent(ext.get(), k -> new ArrayList<>()).add(parseObject(text, ext.get()));
                 Map<String, Object> av = avs.stream().filter(a -> !a.isEmpty()).findFirst().orElse(Map.of());
@@ -96,6 +106,9 @@ public class UpstageResponseParser {
             }
         }
 
+        if (judge != null) {
+            judge = judge.withItemChecks(itemChecks);
+        }
         List<AgentMismatch> mismatches = judge == null ? List.of()
                 : judge.mismatchCodes().stream().map(AgentMismatch::of).toList();
         String error = errorMessage(resp.get("error"));
