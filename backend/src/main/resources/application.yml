@@ -56,4 +56,5 @@ app:
     # 빈 값으로 두면 x-project-id 헤더를 보내지 않는다(키의 기본 프로젝트)
     project-id: ${UPSTAGE_PROJECT_ID:proj_UVMuo7ZXt5heYMoei8ocJH}
     agent-id: ${UPSTAGE_AGENT_ID:agt_5HHQZgemm6hmRVLHyGu4dG}
-    config-id: ${UPSTAGE_CONFIG_ID:5}
+    # 워크플로 설정 버전. 7(2026-11-09): 판정 프롬프트에 PSR·HS 품목별 비교 규칙 추가
+    config-id: ${UPSTAGE_CONFIG_ID:7}

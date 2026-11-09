@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -40,6 +41,8 @@ public class UpstageResponseParser {
 
     private static final Logger log = LoggerFactory.getLogger(UpstageResponseParser.class);
     private static final Pattern CITE = Pattern.compile("【[^】]*】");
+    /** 판정 노드 5줄 출력의 키 */
+    private static final Set<String> JUDGE_KEYS = Set.of("invoice_no", "reason", "mismatch_codes", "missing_documents", "decision");
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {
     };
     private static final TypeReference<List<Object>> LIST = new TypeReference<>() {
@@ -121,10 +124,18 @@ public class UpstageResponseParser {
             }
         }
         if (!parsed) {
+            // 아는 키(invoice_no 등)로 시작하는 줄만 새 값이다. 그 밖의 줄은 앞 값에 이어 붙인다
+            // → reason 뒤에 품목별 근거('PSR 품명: … → 충족')를 줄을 바꿔 써도 reason 에 남는다
+            String current = null;
             for (String line : text.split("\\R")) {
                 int i = line.indexOf(':');
-                if (i > 0) {
-                    d.put(line.substring(0, i).trim().toLowerCase(), line.substring(i + 1).trim());
+                String key = i > 0 ? line.substring(0, i).trim().toLowerCase() : null;
+                if (key != null && JUDGE_KEYS.contains(key)) {
+                    current = key;
+                    d.put(key, line.substring(i + 1).trim());
+                } else if (current != null && !line.isBlank()) {
+                    String prev = d.get(current).toString();
+                    d.put(current, prev.isEmpty() ? line.trim() : prev + "\n" + line.trim());
                 }
             }
         }

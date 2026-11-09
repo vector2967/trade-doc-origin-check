@@ -81,6 +81,28 @@ class UpstageResponseParserTest {
     }
 
     @Test
+    void reason_뒤에_줄을_바꿔_쓴_품목별_근거도_reason에_남는다() {
+        // 설정 7: reason 끝에 품목마다 'PSR 품명: … → 충족' · 'HS 품명: … → 같음' 을 한 줄씩 적는다
+        AgentJudge j = parser.parseJudge("""
+                invoice_no: SA-2609-0014
+                reason: 원산지증명서와 인보이스가 일치합니다.
+                PSR FROZEN MACKEREL: CTH / CC, CTH, RVC 40% → 충족
+
+                HS FROZEN MACKEREL: 0303540000 / 0303540000 → 같음
+                mismatch_codes: []
+                missing_documents: []
+                decision: 특혜 적용""");
+
+        assertThat(j.invoiceNo()).isEqualTo("SA-2609-0014");
+        assertThat(j.reason()).isEqualTo("""
+                원산지증명서와 인보이스가 일치합니다.
+                PSR FROZEN MACKEREL: CTH / CC, CTH, RVC 40% → 충족
+                HS FROZEN MACKEREL: 0303540000 / 0303540000 → 같음""");
+        assertThat(j.mismatchCodes()).isEmpty();
+        assertThat(j.decision()).isEqualTo(Decision.PREFERENTIAL);
+    }
+
+    @Test
     void 필드_메타() {
         List<Map<String, Double>> box = List.of(Map.of("x", 0.1, "y", 0.1), Map.of("x", 0.2, "y", 0.1),
                 Map.of("x", 0.2, "y", 0.12), Map.of("x", 0.1, "y", 0.12));
