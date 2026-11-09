@@ -137,18 +137,22 @@ public class UpstageResponseParser {
             }
         }
         if (!parsed) {
-            // 아는 키(invoice_no 등)로 시작하는 줄만 새 값이다. 그 밖의 줄은 앞 값에 이어 붙인다
-            // → reason 뒤에 품목별 근거('PSR 품명: … → 충족')를 줄을 바꿔 써도 reason 에 남는다
+            // 아는 키(invoice_no 등)로 시작하는 줄만 새 값이다.
+            // reason 뒤에 이어지는 줄('PSR 품명: … → 충족')은 reason 에 붙인다. 다른 키 뒤의 줄은 버린다.
+            // 모르는 머리줄('점검:')이 나오면 앞 값을 닫는다 → 그 아래 '- 송장번호: … → 같음' 같은 점검 줄이 invoice_no 등에 섞이지 않는다
             String current = null;
             for (String line : text.split("\\R")) {
-                int i = line.indexOf(':');
-                String key = i > 0 ? line.substring(0, i).trim().toLowerCase() : null;
+                String t = line.trim();
+                int i = t.indexOf(':');
+                String key = i > 0 ? t.substring(0, i).trim().toLowerCase() : null;
                 if (key != null && JUDGE_KEYS.contains(key)) {
                     current = key;
-                    d.put(key, line.substring(i + 1).trim());
-                } else if (current != null && !line.isBlank()) {
+                    d.put(key, t.substring(i + 1).trim());
+                } else if (key != null && !t.startsWith("-") && !key.contains(" ")) {
+                    current = null; // 모르는 머리줄
+                } else if ("reason".equals(current) && !t.isEmpty()) {
                     String prev = d.get(current).toString();
-                    d.put(current, prev.isEmpty() ? line.trim() : prev + "\n" + line.trim());
+                    d.put(current, prev.isEmpty() ? t : prev + "\n" + t);
                 }
             }
         }

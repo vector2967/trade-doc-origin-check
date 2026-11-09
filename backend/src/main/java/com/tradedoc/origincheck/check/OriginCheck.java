@@ -149,7 +149,8 @@ public class OriginCheck {
     public void markCompleted(String resultJson, Decision decision, String invoiceNo, CheckSummary summary) {
         this.resultJson = resultJson;
         this.decision = decision;
-        this.invoiceNo = invoiceNo;
+        // 컬럼(100자)보다 긴 값이 오면 저장이 실패해 같은 건을 계속 다시 처리하게 되므로 자른다(전체 값은 result_json 에 있다)
+        this.invoiceNo = invoiceNo == null || invoiceNo.length() <= 100 ? invoiceNo : invoiceNo.substring(0, 100);
         applySummary(summary == null ? CheckSummary.EMPTY : summary);
         this.status = CheckStatus.COMPLETED;
         this.completedAt = now();

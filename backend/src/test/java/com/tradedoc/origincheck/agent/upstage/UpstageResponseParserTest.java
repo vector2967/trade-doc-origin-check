@@ -103,6 +103,28 @@ class UpstageResponseParserTest {
     }
 
     @Test
+    void 새_에이전트_설정4_점검_블록은_어느_값에도_섞이지_않는다() {
+        // agt_6AXj… 설정 4 실제 출력(set08, 2026-11-09). invoice_no 다음에 '점검:' 블록이 온다
+        AgentJudge j = parser.parseJudge("""
+                invoice_no: SM-2610-0082【†1】
+                점검:
+                - 원산지확인서 충족·원산지: Y / KR → 문제없음【†2】
+                - 송장번호: SM-2610-0082 / SM-2610-0082 / SM-2610-0082 → 같음【†3】
+                - 발급일: 2026-11-14 / 2026-11-05 → 9일, 소급발급 표시 없음【†9】
+                - PSR FROZEN MACKEREL: 증명서 기준 "WO" / 허용 목록 WO → 충족【†18】
+                - HS FROZEN MACKEREL: 인보이스 0303540000 / 신고필증 0303540000 → 같음【†20】
+                reason: 원산지증명서 발급일(2026-11-14)이 B/L 적재일(2026-11-05)보다 9일 늦은데 소급발급 표시가 없습니다.【†24】
+                mismatch_codes: ["CO_ISSUE_DATE_LATE"]
+                missing_documents: []
+                decision: 검토 필요""");
+
+        assertThat(j.invoiceNo()).isEqualTo("SM-2610-0082");
+        assertThat(j.reason()).isEqualTo("원산지증명서 발급일(2026-11-14)이 B/L 적재일(2026-11-05)보다 9일 늦은데 소급발급 표시가 없습니다.");
+        assertThat(j.mismatchCodes()).containsExactly("CO_ISSUE_DATE_LATE");
+        assertThat(j.decision()).isEqualTo(Decision.REVIEW_REQUIRED);
+    }
+
+    @Test
     void 필드_메타() {
         List<Map<String, Double>> box = List.of(Map.of("x", 0.1, "y", 0.1), Map.of("x", 0.2, "y", 0.1),
                 Map.of("x", 0.2, "y", 0.12), Map.of("x", 0.1, "y", 0.12));
