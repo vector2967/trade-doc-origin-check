@@ -55,6 +55,7 @@ app:
     # 에이전트가 속한 프로젝트. 업로드한 파일과 에이전트가 같은 프로젝트여야 한다(다르면 403 No access to file).
     # 빈 값으로 두면 x-project-id 헤더를 보내지 않는다(키의 기본 프로젝트)
     project-id: ${UPSTAGE_PROJECT_ID:proj_UVMuo7ZXt5heYMoei8ocJH}
-    agent-id: ${UPSTAGE_AGENT_ID:agt_5HHQZgemm6hmRVLHyGu4dG}
-    # 워크플로 설정 버전. 7(2026-11-09): 판정 프롬프트에 PSR·HS 품목별 비교 규칙 추가
-    config-id: ${UPSTAGE_CONFIG_ID:7}
+    agent-id: ${UPSTAGE_AGENT_ID:agt_6AXjbLYAvwm8kdgvYAQLZC}
+    # 워크플로 설정 버전. agt_6AXj… 설정 4(2026-11-09): reason 은 문제만 1~2문장, 품목별 확인은 '점검:' 블록으로 분리
+    # (이전: agt_5HHQ… 설정 7)
+    config-id: ${UPSTAGE_CONFIG_ID:4}

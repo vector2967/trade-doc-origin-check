@@ -598,7 +598,7 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
 `UpstageClient` 가 파이썬 버전의 openai SDK 호출을 그대로 옮겼다(OpenAI 호환 API, `https://api.upstage.ai/v2`, 헤더 `Authorization: Bearer <UPSTAGE_API_KEY>`, `x-project-id`).
 
 실제 호출로 확인함(2026-11-08, set04 → 35초 만에 `보완 요청` · `CO_INVOICE_NO_MISMATCH`, 6종 추출·좌표 모두 채워짐).
-- 에이전트 `agt_5HHQZgemm6hmRVLHyGu4dG`, 설정 `7`(2026-11-09부터, 이전 `5`), 프로젝트 `proj_UVMuo7ZXt5heYMoei8ocJH` (Studio "API로 이용하기" 화면 값).
+- 에이전트 `agt_6AXjbLYAvwm8kdgvYAQLZC`, 설정 `4`(2026-11-09 밤부터. 이전 `agt_5HHQZgemm6hmRVLHyGu4dG` 설정 `7`·`5`), 프로젝트 `proj_UVMuo7ZXt5heYMoei8ocJH` (Studio "API로 이용하기" 화면 값).
 - `x-project-id` 헤더가 **필요하다.** 빼면 파일이 키의 기본 프로젝트에 올라가서 작업 생성이 403 `No access to file` 로 실패한다. 키가 그 프로젝트에 권한이 없으면 403 `project_access_forbidden`.
 - `include[]=all` 쿼리로 모든 노드 출력을 받는다.
 
@@ -610,7 +610,7 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
 
 `UpstageResponseParser` 가 3의 응답을 `AgentCheckResult` 로 바꾼다(파이썬 `to_check_result`).
 - `output[].model` 에 노드 이름이 들어 있다(`Information Extract - 인보이스_추출`, `Instruct - 원산지_판정` 등).
-- 판정 노드 텍스트는 JSON 이거나 5줄 `key: value` 다. 아는 키로 시작하지 않는 줄은 앞 값에 이어 붙인다(설정 7은 reason 끝에 품목별 PSR·HS 비교를 한 줄씩 적는다). `additional_values.enum`(분기에 실제로 쓰인 결정값)이 있으면 그 값을 우선한다. decision 이 모르는 값이면 `검토 필요`.
+- 판정 노드 텍스트는 JSON 이거나 5줄 `key: value` 다. 아는 키로 시작하지 않는 줄은 reason 에만 이어 붙이고, 모르는 머리줄(설정 4의 `점검:` 블록)은 버린다. `additional_values.enum`(분기에 실제로 쓰인 결정값)이 있으면 그 값을 우선한다. decision 이 모르는 값이면 `검토 필요`.
 - 추출 노드 `additional_values` 의 `{_value, confidence, confidence_score, page, word_coordinates}` → `FieldMeta`.
 - 인용 표시 `【†1】` 는 지운다.
 
@@ -660,5 +660,5 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
 | `AGENT_SUBMIT_RETRY_DELAY` | 10s | 첫 재시도 대기(시도마다 두 배, 최대 10분) |
 | `UPSTAGE_API_KEY` | (없음) | upstage 모드에서 필수. 코드·저장소에 적지 않는다 |
 | `STORAGE_DIR` | ./data/uploads | 원본 PDF 저장 위치(운영 이미지는 /data/uploads) |
-| `UPSTAGE_PROJECT_ID` · `UPSTAGE_AGENT_ID` · `UPSTAGE_CONFIG_ID` | proj_UVMuo7ZXt5heYMoei8ocJH · agt_5HHQZgemm6hmRVLHyGu4dG · 7 | §6 |
+| `UPSTAGE_PROJECT_ID` · `UPSTAGE_AGENT_ID` · `UPSTAGE_CONFIG_ID` | proj_UVMuo7ZXt5heYMoei8ocJH · agt_6AXjbLYAvwm8kdgvYAQLZC · 4 | §6 |
 | `STORAGE_DIR` | ./data/uploads | 업로드 PDF 저장 위치 |
