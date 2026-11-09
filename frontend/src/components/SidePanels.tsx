@@ -70,12 +70,14 @@ export function LawPanel({ detail, focusCode, onShowInPdf }: { detail: OriginChe
 
       {codes.map((code) => {
         const b = CODE_BASIS[code]
-        const label = b?.label ?? detail.mismatches.find((m) => m.code === code)?.label ?? code
+        const m = detail.mismatches.find((x) => x.code === code)
+        const label = m?.label ?? b?.label ?? code
+        const stage = m?.stage ?? b?.stage ?? null
         const focused = code === focusCode
         return (
           <section key={code} ref={focused ? focusRef : undefined} className={`law-card${focused ? ' is-focus' : ''}`}>
             <div className="law-card-head">
-              {b && <span className={`badge tone-${STAGE_TONE[b.stage]}`}>{b.stage}단계 · {STAGE_LABEL[b.stage]}</span>}
+              {stage && <span className={`badge tone-${STAGE_TONE[stage]}`}>{stage}단계 · {STAGE_LABEL[stage]}</span>}
               <code className="code-tag">{code}</code>
             </div>
             <p className="law-card-title">{label}</p>

@@ -129,6 +129,23 @@ export interface AgentJudge {
   reason: string
   mismatch_codes: string[]
   missing_documents: RequiredDocument[] | string[]
+  /** 품목별 PSR·HS 비교(백엔드 계산). 2026-11-09 이전 결과엔 없거나 [] */
+  item_checks?: ItemCheck[]
+}
+
+/** judge.item_checks[] (API 명세 §4.1-1) */
+export interface ItemCheck {
+  kind: 'PSR' | 'HS'
+  item: string
+  hs: string | null
+  /** PSR: 원산지증명서 결정기준 / HS: 인보이스 HS 10자리 */
+  doc_value: string | null
+  /** PSR: 관리대장 허용 기준 / HS: 수출신고필증 HS 10자리 */
+  rule_value: string | null
+  /** PSR: 관리대장의 협정 PSR 원문 */
+  rule_text: string | null
+  /** PSR: 충족·불충족·확인불가·비교 비대상 / HS: 같음·6단위 같음·다름·확인불가 */
+  result: string
 }
 
 export interface AgentMismatch {

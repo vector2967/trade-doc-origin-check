@@ -1,6 +1,5 @@
 import { Route, Routes } from 'react-router-dom'
 import { RequireAuth } from './auth/RequireAuth'
-import { DevBar } from './components/DevBar'
 import { Layout } from './components/Layout'
 import { CheckDetailPage } from './pages/CheckDetailPage'
 import { ChecksPage } from './pages/ChecksPage'
@@ -10,7 +9,6 @@ import { NotFoundPage } from './pages/NotFoundPage'
 // 화면명세서 §0: S-01 /  ·  S-02 /checks  ·  S-03 /checks/:checkId
 export default function App() {
   return (
-    <>
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route element={<RequireAuth />}>
@@ -21,7 +19,5 @@ export default function App() {
       </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
-    <DevBar />
-    </>
   )
 }

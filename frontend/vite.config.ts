@@ -11,6 +11,8 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': {
           target: env.VITE_PROXY_TARGET || 'http://localhost:8080',
+          // 운영(https, Caddy)처럼 Host 로 사이트를 고르는 대상도 받도록 Host 를 대상 주소로 바꾼다
+          changeOrigin: true,
           // 브라우저의 Origin 을 그대로 넘기면 백엔드 CORS 검사에 걸린다(포트가 다르면 403). 프록시는 같은 출처로 취급한다
           configure: (proxy) => proxy.on('proxyReq', (req) => req.removeHeader('origin')),
         },

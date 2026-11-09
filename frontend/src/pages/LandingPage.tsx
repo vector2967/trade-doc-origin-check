@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { DEV_LOGIN } from '../auth/devLogin'
 import { useAuth } from '../auth/useAuth'
 import { AuthModal, type AuthMode } from '../components/AuthModal'
 import { DocChip } from '../components/DocChip'
@@ -30,8 +29,7 @@ export function LandingPage() {
   const { user, loading } = useAuth()
   const [modal, setModal] = useState<AuthMode | null>(null)
 
-  // 개발용 로그인 모드에서는 로그인 상태로도 랜딩을 볼 수 있게 보내지 않는다
-  if (!loading && user && !DEV_LOGIN) return <Navigate to="/checks" replace />
+  if (!loading && user) return <Navigate to="/checks" replace />
 
   return (
     <div className="landing">

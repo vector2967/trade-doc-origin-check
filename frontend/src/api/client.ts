@@ -67,11 +67,7 @@ export async function apiRaw(path: string, init: RequestInit = {}): Promise<Resp
     headers.set('Content-Type', 'application/json')
   }
 
-  // npm run dev:mock — 백엔드 대신 가짜 API. 운영 빌드에서는 이 분기와 mocks 모듈이 통째로 빠진다
-  const res =
-    import.meta.env.VITE_MOCK === '1'
-      ? await (await import('../mocks/api')).mockFetch(path, { ...init, headers })
-      : await fetch(`${BASE_URL}${path}`, { ...init, headers })
+  const res = await fetch(`${BASE_URL}${path}`, { ...init, headers })
   if (!res.ok) {
     let body: Partial<ErrorResponse> = {}
     try {

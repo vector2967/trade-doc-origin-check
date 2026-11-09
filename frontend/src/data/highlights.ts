@@ -97,7 +97,7 @@ export function buildHighlights(detail: OriginCheckDetail): Highlight[] {
   const reasonsFor = (node: ExtractNode, matchPath: string, hitCodes: string[]): HighlightReason[] =>
     hitCodes.map((code) => ({
       code,
-      title: CODE_BASIS[code]?.label ?? detail.mismatches.find((m) => m.code === code)?.label ?? code,
+      title: detail.mismatches.find((m) => m.code === code)?.label ?? CODE_BASIS[code]?.label ?? code,
       others: (CODE_FIELDS[code] ?? [])
         .filter(([n, p]) => !(n === node && p === matchPath))
         .map(([n, p]) => valueOf(n, p))

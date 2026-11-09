@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { originChecksApi } from '../api/originChecks'
-import type { AgentExtractedMeta, ExtractNode, FieldMeta, OriginCheckDetail } from '../api/types'
+import type { AgentExtractedMeta, ExtractNode, FieldMeta, ItemCheck, OriginCheckDetail } from '../api/types'
 import { isBusy } from '../checks/groups'
 import { useChecks } from '../checks/useChecks'
 import { usePanel, type PanelKind } from '../checks/usePanel'
@@ -261,6 +261,76 @@ function PanelButton({ active, onClick, disabled, icon, children }: { active: bo
   )
 }
 
+/** 판정 근거. 에이전트 문장이라 형식이 건마다 달라 나누지 않고 문단 그대로 보여 주고, 길면 3줄까지만 펼쳐 둔다 */
+function JudgeReason({ reason }: { reason: string }) {
+  const text = reason.trim()
+  const ref = useRef<HTMLParagraphElement>(null)
+  const [open, setOpen] = useState(false)
+  const [long, setLong] = useState(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el || open) return
+    const ro = new ResizeObserver(() => setLong(el.scrollHeight > el.clientHeight + 1))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [text, open])
+
+  if (!text) return null
+  return (
+    <div className="judge-reason">
+      <h2 className="judge-reason-title">판정 근거</h2>
+      <p ref={ref} id="judge-reason-text" className={`judge-reason-text${open ? '' : ' is-clamped'}`}>{text}</p>
+      {(long || open) && (
+        <button type="button" className="btn-sm btn-ghost judge-reason-more" aria-expanded={open} aria-controls="judge-reason-text" onClick={() => setOpen((v) => !v)}>
+          {open ? <>접기 <IconChevronUp size={14} /></> : <>더 보기 <IconChevronDown size={14} /></>}
+        </button>
+      )}
+    </div>
+  )
+}
+
+const RESULT_TONE: Record<string, string> = { 충족: 'success', 같음: 'success', '6단위 같음': 'caution', 불충족: 'danger', 다름: 'danger' }
+const KIND_SIDES = { PSR: ['원산지증명서', '관리대장 허용'], HS: ['인보이스', '수출신고필증'] } as const
+
+/** HS 10자리를 0303.54-0000 처럼 끊어 6단위(소호)가 눈에 들어오게 한다 */
+const fmtHs = (v: string | null) => (v && /^\d{10}$/.test(v) ? `${v.slice(0, 4)}.${v.slice(4, 6)}-${v.slice(6)}` : v)
+
+/** 품목별 PSR·HS 비교. 백엔드가 계산한 값이라 형식이 늘 같다 */
+function ItemChecks({ checks }: { checks: ItemCheck[] }) {
+  return (
+    <div className="item-checks">
+      <h2 className="judge-reason-title">품목별 원산지 기준·HS 비교</h2>
+      <table className="item-checks-table">
+        <thead>
+          <tr><th>구분</th><th>품목</th><th>서류 값</th><th>기준·비교 값</th><th>결과</th></tr>
+        </thead>
+        <tbody>
+          {checks.map((c, i) => {
+            const [docSide, ruleSide] = KIND_SIDES[c.kind] ?? ['서류', '기준']
+            const val = (v: string | null) => (c.kind === 'HS' ? fmtHs(v) : v) || '—'
+            return (
+              <tr key={i}>
+                <td><span className="item-kind">{c.kind}</span></td>
+                <td className="item-name">
+                  {c.item}
+                  {c.kind === 'PSR' && c.hs && <span className="muted mono"> {fmtHs(c.hs)}</span>}
+                </td>
+                <td><span className="item-side">{docSide}</span><span className="mono">{val(c.doc_value)}</span></td>
+                <td>
+                  <span className="item-side">{ruleSide}</span><span className="mono">{val(c.rule_value)}</span>
+                  {c.rule_text && c.rule_text !== c.rule_value && <span className="item-rule-text">협정 PSR: {c.rule_text}</span>}
+                </td>
+                <td><span className={`badge tone-${RESULT_TONE[c.result] ?? 'neutral'}`}>{c.result}</span></td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 /* ───────── 완료 ───────── */
 function CompletedState({ detail, onOpen }: { detail: OriginCheckDetail; onOpen: (k: PanelKind, o?: { code?: string; page?: number; field?: string }) => void }) {
   const judge = detail.judge
@@ -272,7 +342,9 @@ function CompletedState({ detail, onOpen }: { detail: OriginCheckDetail; onOpen:
     <>
       {judge && (
         <section className="verdict">
-          <span className={`badge badge-lg tone-${tone}`} data-tour="verdict" title={judge.reason}>{judge.decision}</span>
+          <span className={`badge badge-lg tone-${tone}`} data-tour="verdict">{judge.decision}</span>
+          <JudgeReason key={detail.id} reason={judge.reason} />
+          {judge.item_checks && judge.item_checks.length > 0 && <ItemChecks checks={judge.item_checks} />}
         </section>
       )}
 
@@ -293,9 +365,10 @@ function CompletedState({ detail, onOpen }: { detail: OriginCheckDetail; onOpen:
         ) : (
           <ul className="issue-list">
             {codes.map((c) => {
-              const b = CODE_BASIS[c]
-              const stage = b?.stage ?? detail.mismatches.find((m) => m.code === c)?.stage ?? null
-              const label = b?.label ?? detail.mismatches.find((m) => m.code === c)?.label ?? c
+              // 라벨·단계는 API(mismatches[]) 값을 쓰고, 없을 때만 앱의 코드표로 채운다
+              const m = detail.mismatches.find((x) => x.code === c)
+              const stage = m?.stage ?? CODE_BASIS[c]?.stage ?? null
+              const label = m?.label ?? CODE_BASIS[c]?.label ?? c
               const cmp = codeComparison(detail, c)
               return (
                 <li key={c} className="issue-item">
@@ -466,8 +539,17 @@ function countLow(metas: Meta[]) {
 function KvRow({ field, label, value, meta, onOpenPage }: { field: string; label: string; value: unknown; meta: FieldMeta | null | undefined; onOpenPage: (p: number) => void }) {
   const low = isLow(meta)
   const shown = formatValue(value)
+  const page = meta && meta.page > 0 ? meta.page : null
+  // '확인 필요' 행은 줄 어디를 눌러도 원본이 열린다. 키보드는 오른쪽 p.N 버튼으로 같은 동작을 한다
+  const openFromRow = low && page
+    ? (e: MouseEvent) => {
+        if ((e.target as HTMLElement).closest('button, a')) return // p.N 버튼은 자기 클릭으로 처리
+        if (window.getSelection()?.toString()) return // 값을 드래그해 복사하는 중이면 열지 않는다
+        onOpenPage(page)
+      }
+    : undefined
   return (
-    <div className={`kv-row${low ? ' is-low' : ''}`}>
+    <div className={`kv-row${low ? ' is-low' : ''}${openFromRow ? ' is-clickable' : ''}`} onClick={openFromRow} title={openFromRow ? '눌러서 원본에서 보기' : undefined}>
       <dt>{label}</dt>
       <dd>
         {COUNTRY_FIELDS.has(field) && shown !== '—' ? (
@@ -478,9 +560,9 @@ function KvRow({ field, label, value, meta, onOpenPage }: { field: string; label
         {low && <span className="tag tag-warn">확인 필요</span>}
       </dd>
       <span className="kv-meta">
-        {meta && meta.page > 0 && (
-          <button type="button" className="page-link num" onClick={() => onOpenPage(meta.page)} title="원본에서 보기">
-            p.{meta.page}
+        {page && (
+          <button type="button" className="page-link num" onClick={() => onOpenPage(page)} title="원본에서 보기">
+            p.{page}
           </button>
         )}
       </span>
