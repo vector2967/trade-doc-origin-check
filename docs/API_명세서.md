@@ -314,10 +314,16 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
 |---|---|---|
 | `invoice_no` | string \| null | 인보이스 송장번호. 인보이스가 없으면 수출신고필증 송품장부호. 못 읽으면 null |
 | `decision` | `Decision` | 판정. 특혜 적용 · 보완 요청 · 미적용 · 검토 필요 |
-| `reason` | string | 판정 이유 문장(실제 값 포함). `item_checks` 가 있으면 워크플로가 끝에 붙인 품목별 근거('PSR 품명: …', 'HS 품명: …')는 떼고 준다 |
+| `reason` | string | 판정 이유 문장(실제 값 포함). `item_checks` 가 있으면 워크플로가 끝에 붙인 품목별 근거('PSR 품명: …', 'HS 품명: …')는 떼고 준다. 내부 코드·JSON 키는 사람 말로 바꿔 준다(아래) |
 | `mismatch_codes` | string[] | 불일치 코드(§5). 없으면 []. 코드표에 없는 값이 와도 그대로 둔다 |
 | `missing_documents` | string[] | 빠진 서류(`RequiredDocument` 표기). 없으면 [] |
 | `item_checks` | `ItemCheck[]` | 품목별 PSR·HS 비교(§4.1-1). 비교할 게 없거나 2026-11-09 이전 결과면 [] |
+
+**문장 정리(안전망).** `judge.reason`·`follow_up.text`는 응답으로 내보낼 때 아래를 바꾼다. DB에는 워크플로 원문이 그대로 남는다.
+- 불일치 코드 → 코드표(§5) 라벨. 예: `CO_HS_MINOR_DIFF에 해당` → `‘HS 10자리 중 뒤 4자리 차이’에 해당`
+- JSON 키 → 우리말. 예: `issued_retroactively는 false입니다` → `소급발급 표시가 없습니다`, `mismatch_codes는 [...]` → `불일치 항목은 …`
+- `[]` → `없음`. '빠진 서류는 없음'만 적힌 목록 줄은 지운다.
+- 뒤에 오는 조사(은/는·이/가·을/를·과/와·으로/로)는 받침에 맞춘다.
 
 #### 4.1-1 `ItemCheck` — `judge.item_checks[]`
 

@@ -1,6 +1,7 @@
 package com.tradedoc.origincheck.check.dto;
 
 import com.tradedoc.origincheck.agent.dto.AgentCheckResult;
+import com.tradedoc.origincheck.agent.dto.PlainText;
 import com.tradedoc.origincheck.agent.dto.AgentExtracted;
 import com.tradedoc.origincheck.agent.dto.AgentFollowUp;
 import com.tradedoc.origincheck.agent.dto.AgentJudge;
@@ -18,6 +19,7 @@ import java.util.List;
 /**
  * GET /api/v1/origin-checks/{id} 응답. 점검 건 정보 + agent 결과(AgentCheckResult)를 한 번에 준다.
  * status 가 completed 가 아니면 judge · follow_up 은 null, 목록은 빈 값이다.
+ * judge.reason · follow_up.text 는 내보낼 때 내부 코드·JSON 키를 사람 말로 바꾼다(PlainText). DB 에는 원문이 남는다.
  *
  * @param doneAt 담당자 완료 처리 시각 (진행 중이면 null)
  * @param jobId agent 작업 ID (제출 전이면 null)
@@ -48,9 +50,10 @@ public record OriginCheckResponse(
                 : null;
         return new OriginCheckResponse(c.getId(), c.getTitle(), c.getFileName(), c.getStatus(),
                 c.getCreatedAt(), c.getCompletedAt(), c.getDoneAt(), c.getAgentJobId(),
-                r == null ? null : r.judge(),
+                r == null || r.judge() == null ? null : r.judge().withReason(PlainText.humanize(r.judge().reason())),
                 r == null ? List.of() : r.mismatches(),
-                r == null ? null : r.followUp(),
+                r == null || r.followUp() == null ? null
+                        : new AgentFollowUp(r.followUp().kind(), PlainText.humanize(r.followUp().text())),
                 r == null ? AgentExtracted.empty() : r.extracted(),
                 r == null ? AgentExtractedMeta.empty() : r.extractedMeta(),
                 files.stream().map(CheckFileResponse::from).toList(),

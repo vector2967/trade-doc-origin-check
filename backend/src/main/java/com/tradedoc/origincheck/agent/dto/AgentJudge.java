@@ -41,6 +41,10 @@ public record AgentJudge(
         return new AgentJudge(invoiceNo, newDecision, reason, mismatchCodes, missingDocuments, itemChecks);
     }
 
+    public AgentJudge withReason(String newReason) {
+        return new AgentJudge(invoiceNo, decision, newReason, mismatchCodes, missingDocuments, itemChecks);
+    }
+
     /** 품목별 비교를 붙인다. 비교가 있으면 reason 끝에 LLM 이 덧붙인 품목별 근거('PSR …:', 'HS …:')는 떼어 낸다(같은 내용이 item_checks 에 있다) */
     public AgentJudge withItemChecks(List<ItemCheck> checks) {
         if (checks == null || checks.isEmpty()) {
