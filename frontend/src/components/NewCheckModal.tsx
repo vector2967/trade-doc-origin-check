@@ -4,7 +4,7 @@ import { originChecksApi } from '../api/originChecks'
 import { DOC_TYPES, MISSING_EFFECT, hintFromName, type DocType } from '../data/docTypes'
 import { countPages } from '../utils/pdfjs'
 import { DocChip } from './DocChip'
-import { IconFile, IconUpload, IconX } from './icons'
+import { IconAlert, IconCheck, IconFile, IconUpload, IconX } from './icons'
 
 /**
  * M-03 심사 생성 (기획서 '서류 업로드 개선').
@@ -127,13 +127,27 @@ export function NewCheckModal({ onClose, onCreated, incoming }: { onClose: () =>
   const missing = DOC_TYPES.filter((t) => status(t).kind === 'missing')
   const effect = missing.some((t) => MISSING_EFFECT[t] === '보완 요청') ? '보완 요청' : '검토 필요'
   const totalPages = items.reduce((n, it) => n + (typeof it.pages === 'number' ? it.pages : 0), 0)
+  const found = DOC_TYPES.filter((t) => status(t).kind === 'ok').length
+  // 진행 단계 표시 (Page Flows 식): 파일 고르기 → 서류 확인 → 점검 시작
+  const step = busy ? 2 : items.length > 0 ? 1 : 0
 
   return (
     <div className="modal-backdrop" onClick={() => !busy && onClose()}>
       <form className="modal upload" onClick={(e) => e.stopPropagation()} onSubmit={submit} aria-label="심사 생성">
         <header className="upload-head">
-          <h2>심사 생성</h2>
-          <button type="button" className="btn-icon btn-ghost btn-sm" onClick={onClose} aria-label="닫기" disabled={busy}>
+          <div className="upload-title">
+            <h2>심사 생성</h2>
+            <p className="upload-sub">한 선적 건의 서류 PDF를 올리면 AI가 나누고, 읽고, 맞대어 봅니다.</p>
+          </div>
+          <ol className="upload-steps" aria-label="진행 단계">
+            {['파일 올리기', '서류 확인', '점검 시작'].map((label, i) => (
+              <li key={label} className={i < step ? 'is-done' : i === step ? 'is-current' : undefined} aria-current={i === step ? 'step' : undefined}>
+                <span className="upload-step-no">{i < step ? <IconCheck size={11} /> : i + 1}</span>
+                {label}
+              </li>
+            ))}
+          </ol>
+          <button type="button" className="btn-icon btn-ghost btn-sm upload-close" onClick={onClose} aria-label="닫기" disabled={busy}>
             <IconX />
           </button>
         </header>
@@ -162,9 +176,12 @@ export function NewCheckModal({ onClose, onCreated, incoming }: { onClose: () =>
                   e.target.value = ''
                 }}
               />
-              <IconUpload size={items.length ? 16 : 22} />
-              <span className="dropzone-main">파일을 여기에 놓거나 눌러서 고르기</span>
-              <span className="dropzone-sub">PDF · 최대 20개, 합계 100MB까지 · 합친 PDF 1개도 됨</span>
+              <span className="dropzone-icon"><IconUpload size={items.length ? 16 : 22} /></span>
+              <span className="dropzone-text">
+                <span className="dropzone-main">{items.length ? '파일 더 넣기' : '파일을 여기에 놓거나 눌러서 고르기'}</span>
+                <span className="dropzone-sub">PDF · 최대 20개, 합계 100MB까지 · 합친 PDF 1개도 됨</span>
+              </span>
+              {!items.length && <span className="dropzone-btn" aria-hidden>파일 고르기</span>}
             </label>
 
             {notes.length > 0 && (
@@ -177,7 +194,7 @@ export function NewCheckModal({ onClose, onCreated, incoming }: { onClose: () =>
               <ol className="upload-files" aria-label="올릴 파일 (이 순서대로 이어 붙여 점검)">
                 {items.map((it) => (
                   <li key={it.key} className="upload-file">
-                    <IconFile size={16} />
+                    <span className="upload-file-icon" aria-hidden><IconFile size={15} /></span>
                     <span className="upload-file-name" title={it.file.name}>{it.file.name}</span>
                     <span className="upload-file-meta num">
                       {it.pages === 'loading' ? '…' : it.pages == null ? '열 수 없음' : `${it.pages}쪽`} · {mb(it.file.size)}
@@ -214,7 +231,11 @@ export function NewCheckModal({ onClose, onCreated, incoming }: { onClose: () =>
           </div>
 
           <aside className="upload-check" aria-label="서류 체크리스트">
-            <p className="upload-check-title">서류 체크리스트</p>
+            <div className="upload-check-head">
+              <p className="upload-check-title">서류 체크리스트</p>
+              <span className="upload-check-count num">{found} / {DOC_TYPES.length}</span>
+            </div>
+            <div className="upload-check-bar" aria-hidden><span style={{ width: `${(found / DOC_TYPES.length) * 100}%` }} /></div>
             <ul>
               {DOC_TYPES.map((t) => {
                 const s = status(t)
@@ -243,7 +264,8 @@ export function NewCheckModal({ onClose, onCreated, incoming }: { onClose: () =>
               <span className="error">{error}</span>
             ) : items.length > 0 && missing.length > 0 ? (
               <>
-                {missing.join(', ')} 없이 점검하면 '{effect}'{effect === '보완 요청' ? '으로' : '로'} 나올 수 있어요.
+                <IconAlert size={14} />
+                <span>{missing.join(', ')} 없이 점검하면 '{effect}'{effect === '보완 요청' ? '으로' : '로'} 나올 수 있어요.</span>
               </>
             ) : null}
           </p>

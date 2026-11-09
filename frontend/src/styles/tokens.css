@@ -5,6 +5,11 @@
  * 바탕은 원산지증명서 용지 같은 옅은 초록 회색, 브랜드 색은 검인 남보라 하나, 판정 색은 판정에만.
  * 디자인 시스템 페이지: https://claude.ai/artifact/88r1GWKHvvcLGoZngT9jEQ (README·컴포넌트 규칙)
  *
+ * 2026-11 고도화 (정체성은 그대로 · 색 규칙은 그대로)
+ *   - 모서리를 한 단계 둥글게(카드 12 · 모달 16), 판정 도장(배지)만은 각진 3px 로 남겨 '도장' 느낌을 지킨다
+ *   - 그림자를 두 겹(가까운 그림자 + 먼 그림자)으로 바꿔 면이 종이 위에 떠 있게
+ *   - 랜딩용 큰 글자(5xl·6xl)와 브랜드 잉크(진한 남보라 면), 모눈 바탕 토큰 추가
+ *
  * 층 구조
  *   1) 원색(primitive)  --gray-500, --blue-600 …   값만 정의. 컴포넌트에서 직접 쓰지 않는다.
  *   2) 의미(semantic)   --color-*, --tone-*, --hl-*  컴포넌트는 이것만 쓴다. 다크 모드에서 이 층만 바뀐다.
@@ -79,14 +84,17 @@
   --color-bg-subtle: #e9ece6;     /* 표 머리, 썸네일 레일, 스켈레톤 */
   --color-surface: #ffffff;        /* 카드, 패널 */
   --color-surface-raised: #ffffff; /* 모달, 드롭다운 (그림자와 함께) */
+  --color-surface-sunken: #f7f8f5; /* 흰 카드 안의 한 단계 들어간 면 (표 머리, 미니 목록) */
   --color-surface-hover: #eef1eb;
   --color-surface-selected: #ebeaf7;
   --color-overlay: rgb(17 20 18 / 0.48); /* 모달 뒤 */
+  --color-glass: rgb(243 245 241 / 0.78); /* 위에 붙는 머리줄 (뒤가 비치게 blur 와 함께) */
   --color-pdf-canvas: #e9ece6;   /* PDF 뷰어 바탕 */
 
   /* 선 */
   --color-border: #d6dad2;
   --color-border-subtle: #e4e7e1;
+  --color-border-control: #c9cfc6; /* 버튼·입력 테두리 */
   --color-border-strong: #858c82;
 
   /* 글자 */
@@ -100,10 +108,20 @@
   /* 포인트 (주요 버튼, 선택, 포커스) */
   --color-accent: #3f3d9e;
   --color-accent-hover: #33317f;
+  --color-accent-strong: #2e2c7a;  /* 주요 버튼 아래쪽 그라데이션 끝 */
   --color-accent-subtle: #ebeaf7;
   --color-accent-border: #c9c7ee;
   --color-on-accent: #ffffff;
-  --color-focus-ring: rgb(63 61 158 / 0.35);
+  --color-focus-ring: rgb(63 61 158 / 0.28);
+
+  /* 브랜드 잉크: 랜딩 마지막 띠·로그인 창 왼쪽처럼 넓은 남보라 면. 다크에서도 흰 글자 */
+  --color-brand-ink: #24226a;
+  --color-brand-ink-2: #3f3d9e;
+  --color-on-brand: #ffffff;
+
+  /* 모눈 바탕 (원산지증명서 칸 느낌) · 히어로 빛 */
+  --grid-line: rgb(20 26 22 / 0.055);
+  --hero-glow: rgb(63 61 158 / 0.16);
 
   /* 상태 톤 — 배지·배너·알림 공용. bg(옅은 면) / fg(글자) / border / solid(점·아이콘·진한 면) */
   --tone-success-bg: #e5f3ea;
@@ -150,11 +168,12 @@
   --hl-stroke-width: 1.5px;
   --hl-stroke-width-selected: 2.5px;
 
-  /* 그림자 */
-  --shadow-xs: 0 1px 2px rgb(20 26 22 / 0.06);
-  --shadow-sm: 0 1px 3px rgb(19 23 28 / 0.08), 0 1px 2px rgb(19 23 28 / 0.04);
-  --shadow-md: 0 1px 2px rgb(20 26 22 / 0.06), 0 4px 16px rgb(20 26 22 / 0.06);
-  --shadow-lg: 0 12px 32px rgb(20 26 22 / 0.16);
+  /* 그림자 — 가까운 그림자 + 먼 그림자 두 겹 */
+  --shadow-xs: 0 1px 2px rgb(20 26 22 / 0.05);
+  --shadow-sm: 0 1px 2px rgb(20 26 22 / 0.04), 0 2px 8px rgb(20 26 22 / 0.05);
+  --shadow-md: 0 2px 4px rgb(20 26 22 / 0.04), 0 10px 28px rgb(20 26 22 / 0.08);
+  --shadow-lg: 0 10px 20px rgb(20 26 22 / 0.06), 0 28px 64px rgb(20 26 22 / 0.18);
+  --shadow-accent: 0 1px 2px rgb(46 44 122 / 0.28), 0 8px 20px -6px rgb(63 61 158 / 0.5);
 
   /* ───────── 3. 치수 ───────── */
 
@@ -170,7 +189,9 @@
   --text-xl: 1.125rem;   /* 18 섹션 제목 */
   --text-2xl: 1.375rem;  /* 22 페이지 제목 */
   --text-3xl: 1.75rem;   /* 28 */
-  --text-4xl: 2.5rem;    /* 40 랜딩 히어로 */
+  --text-4xl: 2.5rem;    /* 40 */
+  --text-5xl: 3.25rem;   /* 52 랜딩 섹션 */
+  --text-6xl: 4rem;      /* 64 랜딩 히어로 */
 
   --leading-tight: 1.3;
   --leading-normal: 1.55;
@@ -182,7 +203,9 @@
   --weight-bold: 700;
 
   --tracking-tight: -0.02em; /* 큰 제목 */
+  --tracking-display: -0.035em; /* 랜딩 히어로 */
   --tracking-normal: -0.005em;
+  --tracking-label: 0.04em; /* 작은 라벨 */
 
   /* 간격 — 4px 단위 */
   --space-0: 0;
@@ -196,24 +219,28 @@
   --space-10: 2.5rem; /* 40 */
   --space-12: 3rem;   /* 48 */
   --space-16: 4rem;   /* 64 */
+  --space-20: 5rem;   /* 80 */
+  --space-24: 6rem;   /* 96 */
 
   /* 모서리 */
-  --radius-sm: 2px;   /* 배지, 칩, 하이라이트 박스 */
-  --radius-md: 4px;   /* 버튼, 입력 */
-  --radius-lg: 6px;  /* 카드, 패널 */
-  --radius-xl: 10px;  /* 모달 */
+  --radius-stamp: 3px; /* 판정 도장·서류 칩: 각지게 남긴다 */
+  --radius-sm: 4px;   /* 태그, 하이라이트 박스 */
+  --radius-md: 8px;   /* 버튼, 입력 */
+  --radius-lg: 12px;  /* 카드, 패널 */
+  --radius-xl: 16px;  /* 모달, 작업 패널 */
+  --radius-2xl: 24px; /* 랜딩 큰 면 */
   --radius-full: 999px;
 
   /* 컨트롤 높이 */
-  --control-h-sm: 28px;
-  --control-h-md: 36px;
-  --control-h-lg: 44px;
+  --control-h-sm: 30px;
+  --control-h-md: 38px;
+  --control-h-lg: 48px;
 
   /* 레이아웃 */
   --layout-max: 1200px;
   --layout-max-wide: 1440px; /* S-03 PDF 분할 화면 */
   --layout-gutter: var(--space-4);
-  --gnb-h: 56px;
+  --gnb-h: 64px;
   --pdf-split: 55%;          /* PDF 뷰어 : 추출값 패널 = 55 : 45 */
   --modal-w-sm: 420px;
   --modal-w-md: 560px;
@@ -232,6 +259,7 @@
   --duration-slow: 320ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
 /* ───────── 다크 모드: 의미 층만 다시 매핑 ─────────
@@ -243,12 +271,15 @@
     --color-bg-subtle: #0c0e0d;
     --color-surface: #191c1a;
     --color-surface-raised: #202421;
+    --color-surface-sunken: #151816;
     --color-surface-hover: #202421;
     --color-surface-selected: #23224a;
     --color-overlay: rgb(0 0 0 / 0.6);
+    --color-glass: rgb(17 20 18 / 0.72);
     --color-pdf-canvas: #0c0e0d;
     --color-border: #2b302c;
     --color-border-subtle: #222623;
+    --color-border-control: #363c37;
     --color-border-strong: #6b736d;
     --color-text: #e6ebe7;
     --color-text-secondary: #b0b9b3;
@@ -258,10 +289,16 @@
     --color-link: #a5a3f2;
     --color-accent: #a5a3f2;
     --color-accent-hover: #bdbbf6;
+    --color-accent-strong: #8c89e6;
     --color-accent-subtle: #23224a;
     --color-accent-border: #3b3a73;
-    --color-focus-ring: rgb(165 163 242 / 0.45);
+    --color-focus-ring: rgb(165 163 242 / 0.4);
     --color-on-accent: #15143a;
+    --color-brand-ink: #1b1a45;
+    --color-brand-ink-2: #2d2b70;
+    --color-on-brand: #ffffff;
+    --grid-line: rgb(255 255 255 / 0.045);
+    --hero-glow: rgb(165 163 242 / 0.14);
     --tone-success-bg: #13281c;
     --tone-success-fg: #6fcf97;
     --tone-success-border: #1f4a31;
@@ -281,9 +318,10 @@
     --tone-neutral-fg: #c3cbc5;
     --tone-neutral-border: #2b302c;
     --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.3);
-    --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.4);
-    --shadow-md: 0 4px 12px rgb(0 0 0 / 0.4);
-    --shadow-lg: 0 16px 40px rgb(0 0 0 / 0.55);
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 8px rgb(0 0 0 / 0.25);
+    --shadow-md: 0 2px 4px rgb(0 0 0 / 0.3), 0 10px 28px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 20px rgb(0 0 0 / 0.35), 0 28px 64px rgb(0 0 0 / 0.55);
+    --shadow-accent: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 20px -6px rgb(165 163 242 / 0.35);
   }
 }
 
@@ -293,12 +331,15 @@
   --color-bg-subtle: #0c0e0d;
   --color-surface: #191c1a;
   --color-surface-raised: #202421;
+  --color-surface-sunken: #151816;
   --color-surface-hover: #202421;
   --color-surface-selected: #23224a;
   --color-overlay: rgb(0 0 0 / 0.6);
+  --color-glass: rgb(17 20 18 / 0.72);
   --color-pdf-canvas: #0c0e0d;
   --color-border: #2b302c;
   --color-border-subtle: #222623;
+  --color-border-control: #363c37;
   --color-border-strong: #6b736d;
   --color-text: #e6ebe7;
   --color-text-secondary: #b0b9b3;
@@ -308,10 +349,16 @@
   --color-link: #a5a3f2;
   --color-accent: #a5a3f2;
   --color-accent-hover: #bdbbf6;
+  --color-accent-strong: #8c89e6;
   --color-accent-subtle: #23224a;
   --color-accent-border: #3b3a73;
-  --color-focus-ring: rgb(165 163 242 / 0.45);
+  --color-focus-ring: rgb(165 163 242 / 0.4);
   --color-on-accent: #15143a;
+  --color-brand-ink: #1b1a45;
+  --color-brand-ink-2: #2d2b70;
+  --color-on-brand: #ffffff;
+  --grid-line: rgb(255 255 255 / 0.045);
+  --hero-glow: rgb(165 163 242 / 0.14);
   --tone-success-bg: #13281c;
   --tone-success-fg: #6fcf97;
   --tone-success-border: #1f4a31;
@@ -331,9 +378,10 @@
   --tone-neutral-fg: #c3cbc5;
   --tone-neutral-border: #2b302c;
   --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.3);
-  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.4);
-  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.4);
-  --shadow-lg: 0 16px 40px rgb(0 0 0 / 0.55);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 8px rgb(0 0 0 / 0.25);
+  --shadow-md: 0 2px 4px rgb(0 0 0 / 0.3), 0 10px 28px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 10px 20px rgb(0 0 0 / 0.35), 0 28px 64px rgb(0 0 0 / 0.55);
+  --shadow-accent: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 20px -6px rgb(165 163 242 / 0.35);
 }
 
 @media (prefers-reduced-motion: reduce) {

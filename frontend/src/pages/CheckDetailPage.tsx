@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNo
 import { Link, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { originChecksApi } from '../api/originChecks'
-import type { AgentExtractedMeta, ExtractNode, FieldMeta, ItemCheck, OriginCheckDetail } from '../api/types'
+import type { AgentExtractedMeta, ExtractNode, FieldMeta, ItemCheck, OriginCheckDetail, OriginCheckSummary } from '../api/types'
 import { isBusy } from '../checks/groups'
 import { useChecks } from '../checks/useChecks'
 import { usePanel, type PanelKind } from '../checks/usePanel'
 import { COLLAPSE_ACTIVE_GROUP, keepListParams } from '../checks/listParams'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { IconAlert, IconArrowLeft, IconCheck, IconChevronDown, IconChevronRight, IconChevronUp, IconFile, IconMail, IconRefresh, IconScale, IconTrash } from '../components/icons'
+import { IconAlert, IconArrowLeft, IconCheck, IconChevronDown, IconChevronRight, IconChevronUp, IconFile, IconMail, IconRefresh, IconScale, IconSparkle, IconTrash } from '../components/icons'
 import { FOLLOW_UP_TITLE } from '../data/followUp'
 import { LawPanel, MailPanel, PdfPanel, SidePanel } from '../components/SidePanels'
 import { COUNTRY_FIELDS, Country } from '../components/Country'
@@ -17,7 +17,8 @@ import { fileTypes, pageTypes } from '../data/docTypes'
 import { DOC_DEFS } from '../data/documents'
 import { codeComparison, fieldId } from '../data/highlights'
 import { dealInfo } from '../data/deal'
-import { CODE_BASIS } from '../data/legalBasis'
+import { CODE_BASIS, MISSING_DOC_BASIS, STAGE_LABEL } from '../data/legalBasis'
+import { issueLine } from '../data/issueSummary'
 import { useOriginCheck } from '../hooks/useOriginCheck'
 import { CONFIDENCE_THRESHOLD, DECISION_TONE } from '../styles/tokens'
 import { formatDateTime, formatValue } from '../utils/format'
@@ -186,29 +187,33 @@ export function CheckDetailPage() {
                   <PanelButton active={panel === 'mail'} onClick={() => toggle('mail')} disabled={!data.follow_up} icon={<IconMail />}>
                     {data.follow_up ? (FOLLOW_UP_TITLE[data.follow_up.kind] ?? '후속 문서').replace(' 초안', '') : '후속 문서'}
                   </PanelButton>
-                  {canDelete && (
-                    <button
-                      type="button"
-                      className="btn-sm tool-btn delete-btn"
-                      onClick={() => setConfirmDelete(true)}
-                      disabled={acting != null}
-                      title="이 심사와 올린 원본 PDF 삭제"
-                    >
-                      <IconTrash size={14} />
-                      삭제
-                    </button>
-                  )}
-                  {canDone && (
-                    <button
-                      type="button"
-                      className={`btn-sm done-btn${doneTime ? ' is-done' : ''}`}
-                      data-tour="done"
-                      onClick={toggleDone}
-                      title={doneTime ? '진행 중으로 되돌리기 (E)' : '완료 처리하고 다음 건으로 (E)'}
-                    >
-                      <IconCheck size={14} />
-                      {doneTime ? '다시 열기' : '완료 처리'}
-                    </button>
+                  {(canDelete || canDone) && (
+                    <span className="detail-actions-end">
+                      {canDelete && (
+                        <button
+                          type="button"
+                          className="btn-sm tool-btn delete-btn"
+                          onClick={() => setConfirmDelete(true)}
+                          disabled={acting != null}
+                          title="이 심사와 올린 원본 PDF 삭제"
+                        >
+                          <IconTrash size={14} />
+                          삭제
+                        </button>
+                      )}
+                      {canDone && (
+                        <button
+                          type="button"
+                          className={`btn-sm done-btn${doneTime ? ' is-done' : ''}`}
+                          data-tour="done"
+                          onClick={toggleDone}
+                          title={doneTime ? '진행 중으로 되돌리기 (E)' : '완료 처리하고 다음 건으로 (E)'}
+                        >
+                          <IconCheck size={14} />
+                          {doneTime ? '다시 열기' : '완료 처리'}
+                        </button>
+                      )}
+                    </span>
                   )}
                 </div>
 
@@ -279,8 +284,7 @@ function JudgeReason({ reason }: { reason: string }) {
   if (!text) return null
   return (
     <div className="judge-reason">
-      <h2 className="judge-reason-title">판정 근거</h2>
-      <p ref={ref} id="judge-reason-text" className={`judge-reason-text${open ? '' : ' is-clamped'}`}>{text}</p>
+      <p ref={ref} id="judge-reason-text" className={`verdict-reason judge-reason-text${open ? '' : ' is-clamped'}`}>{text}</p>
       {(long || open) && (
         <button type="button" className="btn-sm btn-ghost judge-reason-more" aria-expanded={open} aria-controls="judge-reason-text" onClick={() => setOpen((v) => !v)}>
           {open ? <>접기 <IconChevronUp size={14} /></> : <>더 보기 <IconChevronDown size={14} /></>}
@@ -300,7 +304,7 @@ const fmtHs = (v: string | null) => (v && /^\d{10}$/.test(v) ? `${v.slice(0, 4)}
 function ItemChecks({ checks }: { checks: ItemCheck[] }) {
   return (
     <div className="item-checks">
-      <h2 className="judge-reason-title">품목별 원산지 기준·HS 비교</h2>
+      <h2 className="item-checks-title">품목별 원산지 기준·HS 비교</h2>
       <table className="item-checks-table">
         <thead>
           <tr><th>구분</th><th>품목</th><th>서류 값</th><th>기준·비교 값</th><th>결과</th></tr>
@@ -337,16 +341,42 @@ function CompletedState({ detail, onOpen }: { detail: OriginCheckDetail; onOpen:
   const tone = judge ? DECISION_TONE[judge.decision] : 'neutral'
   const codes = judge?.mismatch_codes ?? detail.mismatches.map((m) => m.code)
   const missing = judge?.missing_documents ?? []
+  // 대표 문제 하나와 먼저 할 일 (목록 요약과 같은 규칙: 특혜 불가 → 할 일 있는 것 → 나머지)
+  const first = issueLine({
+    id: detail.id, title: detail.title, file_name: detail.file_name, status: detail.status,
+    decision: judge?.decision ?? null, invoice_no: judge?.invoice_no ?? null,
+    created_at: detail.created_at, completed_at: detail.completed_at,
+    mismatch_codes: codes, missing_documents: missing as string[],
+  } satisfies OriginCheckSummary)
 
   return (
     <>
       {judge && (
-        <section className="verdict">
-          <span className={`badge badge-lg tone-${tone}`} data-tour="verdict">{judge.decision}</span>
-          <JudgeReason key={detail.id} reason={judge.reason} />
-          {judge.item_checks && judge.item_checks.length > 0 && <ItemChecks checks={judge.item_checks} />}
+        <section className={`verdict tone-${tone}`} aria-label="판정 요약">
+          <div className="verdict-stamp">
+            <span className={`badge badge-lg stamp tone-${tone}`} data-tour="verdict">{judge.decision}</span>
+          </div>
+          <div className="verdict-body">
+            <p className="verdict-label" title="AI의 1차 판정입니다. 최종 판단은 담당자가 합니다."><IconSparkle size={12} /> AI 1차 판정</p>
+            <JudgeReason key={detail.id} reason={judge.reason} />
+            {first?.todo && (
+              <p className="verdict-next">
+                <span className="verdict-next-label">먼저 할 일</span>
+                <span className="verdict-next-text">
+                  {first.text} → <b>{first.todo}</b>
+                  {first.more > 0 && <span className="muted"> · 외 {first.more}건</span>}
+                </span>
+              </p>
+            )}
+          </div>
+          <dl className="verdict-stats">
+            <div><dt>불일치</dt><dd className="num">{codes.length}</dd></div>
+            <div><dt>빠진 서류</dt><dd className="num">{missing.length}</dd></div>
+          </dl>
         </section>
       )}
+
+      {judge?.item_checks && judge.item_checks.length > 0 && <ItemChecks checks={judge.item_checks} />}
 
       <section className="section">
         <div className="section-head">
@@ -376,6 +406,7 @@ function CompletedState({ detail, onOpen }: { detail: OriginCheckDetail; onOpen:
                     <span className={`issue-dot tone-${stage ? STAGE_TONE[stage] : 'neutral'}`} aria-hidden />
                     <span className="issue-main">
                       <span className="issue-label">{label}</span>
+                      {stage && <span className={`issue-stage text-tone-${STAGE_TONE[stage]}`}>{stage}단계 · {STAGE_LABEL[stage]}</span>}
                     </span>
                     <span className="issue-actions" data-tour="issue">
                       {cmp.length > 0 && (
@@ -401,21 +432,25 @@ function CompletedState({ detail, onOpen }: { detail: OriginCheckDetail; onOpen:
                 </li>
               )
             })}
-            {missing.map((m) => (
-              <li key={m} className="issue-item">
-                <div className="issue-top">
-                  <span className="issue-dot tone-warning" aria-hidden />
-                  <span className="issue-main">
-                    <span className="issue-label">{m} 없음</span>
-                  </span>
-                  <span className="issue-actions">
-                    <button type="button" className="btn-sm btn-ghost" onClick={() => onOpen('law')}>
-                      <IconScale size={14} /> 근거
-                    </button>
-                  </span>
-                </div>
-              </li>
-            ))}
+            {missing.map((m) => {
+              const ms = MISSING_DOC_BASIS[m]?.stage
+              return (
+                <li key={m} className="issue-item">
+                  <div className="issue-top">
+                    <span className={`issue-dot tone-${ms ? STAGE_TONE[ms] : 'warning'}`} aria-hidden />
+                    <span className="issue-main">
+                      <span className="issue-label">{m} 없음</span>
+                      {ms && <span className={`issue-stage text-tone-${STAGE_TONE[ms]}`}>{ms}단계 · {STAGE_LABEL[ms]} · 누락 서류</span>}
+                    </span>
+                    <span className="issue-actions">
+                      <button type="button" className="btn-sm btn-ghost" onClick={() => onOpen('law')}>
+                        <IconScale size={14} /> 근거
+                      </button>
+                    </span>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
@@ -576,16 +611,19 @@ const STEPS = ['PDF 접수', '서류 분류', '값 추출', '서류 대조', '�
 function BusyState({ status }: { status: string }) {
   const at = status === 'queued' ? 0 : 2
   return (
-    <section className="busy">
+    <section className="busy" aria-live="polite">
       <div className="busy-head">
-        <span className="status-ring tone-info is-busy" />
-        <p className="busy-title">{status === 'queued' ? '대기 중' : '점검 중'}</p>
+        <span className="busy-icon"><span className="status-ring tone-info is-busy" /></span>
+        <div>
+          <p className="busy-title">{status === 'queued' ? '점검 순서를 기다리고 있어요' : 'AI가 서류를 점검하고 있어요'}</p>
+          <p className="busy-sub">다른 심사를 보고 있어도 점검은 계속됩니다. 끝나면 이 화면이 저절로 바뀌어요.</p>
+        </div>
       </div>
       <ol className="steps">
         {STEPS.map((s, i) => (
           <li key={s} className={i < at ? 'is-done' : i === at ? 'is-current' : ''}>
-            <span className="step-dot" />
-            {s}
+            <span className="step-dot">{i < at ? <IconCheck size={11} /> : <span className="num">{i + 1}</span>}</span>
+            <span className="step-name">{s}</span>
           </li>
         ))}
       </ol>
@@ -597,15 +635,18 @@ function BusyState({ status }: { status: string }) {
 function FailedState({ detail, retrying, disabled, onRetry, onReupload }: { detail: OriginCheckDetail; retrying: boolean; disabled: boolean; onRetry: () => void; onReupload: () => void }) {
   return (
     <section className="failed">
-      <p className="failed-title"><IconAlert /> 점검을 마치지 못했습니다</p>
-      <p>{detail.error?.message ?? '알 수 없는 오류가 났습니다.'}</p>
-      {detail.error?.code && <code className="code-tag">{detail.error.code}</code>}
-      <div className="failed-actions">
-        {/* 같은 파일로 다시 점검. 파일을 바꾸려면 새로 올린다 */}
-        <button type="button" className="btn-sm btn-primary" onClick={onRetry} disabled={disabled}>
-          <IconRefresh size={14} /> {retrying ? '다시 실행하는 중…' : '다시 실행'}
-        </button>
-        <button type="button" className="btn-sm" onClick={onReupload} disabled={disabled}>파일 다시 올리기</button>
+      <span className="failed-icon"><IconAlert size={20} /></span>
+      <div className="failed-main">
+        <p className="failed-title">점검을 마치지 못했습니다</p>
+        <p className="failed-msg">{detail.error?.message ?? '알 수 없는 오류가 났습니다.'}</p>
+        {detail.error?.code && <code className="code-tag">{detail.error.code}</code>}
+        <div className="failed-actions">
+          {/* 같은 파일로 다시 점검. 파일을 바꾸려면 새로 올린다 */}
+          <button type="button" className="btn-sm btn-primary" onClick={onRetry} disabled={disabled}>
+            <IconRefresh size={14} /> {retrying ? '다시 실행하는 중…' : '다시 실행'}
+          </button>
+          <button type="button" className="btn-sm" onClick={onReupload} disabled={disabled}>파일 다시 올리기</button>
+        </div>
       </div>
     </section>
   )
@@ -664,6 +705,7 @@ function FileList({ detail, onOpenPage }: { detail: OriginCheckDetail; onOpenPag
           return (
             <li key={`${f.page_from}-${f.name}`}>
               <button type="button" className="props-file" onClick={() => onOpenPage(f.page_from)} title={`${f.name} · 원본에서 보기`}>
+                <span className="props-file-icon" aria-hidden><IconFile size={15} /></span>
                 <span className="props-file-name">{f.name}</span>
                 <span className="props-file-meta">
                   <span className="mono">{range}</span>

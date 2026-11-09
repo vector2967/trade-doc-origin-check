@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { IconAlert, IconTrash } from './icons'
 
 /**
  * 되돌릴 수 없는 일(삭제 등) 전에 한 번 묻는 작은 창.
@@ -27,6 +28,7 @@ export function ConfirmDialog({ title, children, confirmLabel, busyLabel, danger
   return (
     <div className="modal-backdrop" onClick={() => !busy && onCancel()}>
       <div className="modal confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" onClick={(e) => e.stopPropagation()}>
+        <span className={`confirm-icon${danger ? ' is-danger' : ''}`} aria-hidden>{danger ? <IconTrash size={20} /> : <IconAlert size={20} />}</span>
         <h2 id="confirm-title" className="confirm-title">{title}</h2>
         <div className="confirm-body">{children}</div>
         <footer className="confirm-foot">

@@ -85,7 +85,7 @@ export function CheckSidebar({ userName, company, onNew, onLogout, onHelp }: {
         </NavLink>
         <div className="sb-head-actions">
           <ThemeToggle />
-          <button type="button" className="btn-icon btn-ghost" onClick={onNew} data-tour="new" aria-label="심사 생성" title="심사 생성">
+          <button type="button" className="btn-icon sb-new" onClick={onNew} data-tour="new" aria-label="심사 생성" title="심사 생성">
             <IconPlus size={18} />
           </button>
         </div>
