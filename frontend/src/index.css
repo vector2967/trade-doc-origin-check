@@ -1259,8 +1259,8 @@ a.sb-row:focus-visible { outline-offset: -2px; }
 }
 .auth-aside::after { content: ''; position: absolute; z-index: -1; right: -80px; bottom: -90px; width: 260px; height: 260px; border-radius: 50%; border: 10px double color-mix(in srgb, var(--color-on-brand) 12%, transparent); }
 .auth-aside-brand { display: inline-flex; align-items: center; gap: 10px; font-weight: var(--weight-bold); letter-spacing: var(--tracking-tight); }
-.auth-aside-brand svg rect { fill: var(--color-on-brand); }
-.auth-aside-brand svg path { stroke: var(--color-brand-ink); }
+.auth-aside-brand .lm-tile { fill: var(--color-on-brand); }
+.auth-aside-brand .lm-ink { stroke: var(--color-brand-ink); }
 .auth-aside-title { margin-top: var(--space-6); font-size: 28px; line-height: 1.32; font-weight: var(--weight-bold); letter-spacing: -0.03em; }
 .auth-aside-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; color: color-mix(in srgb, var(--color-on-brand) 84%, transparent); }
 .auth-aside-points li { display: flex; align-items: center; gap: 10px; }

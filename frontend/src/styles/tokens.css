@@ -118,6 +118,8 @@
   --color-brand-ink: #24226a;
   --color-brand-ink-2: #3f3d9e;
   --color-on-brand: #ffffff;
+  /* 로고 도장 옆 주황 인장(확인 표시). 라이트·다크 같은 색 */
+  --color-logo-seal: #f2a65a;
 
   /* 모눈 바탕 (원산지증명서 칸 느낌) · 히어로 빛 */
   --grid-line: rgb(20 26 22 / 0.055);

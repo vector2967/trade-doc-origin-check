@@ -53,10 +53,34 @@ export const IconHighlighter = (p: P) => <Svg {...p}><path d="m9 11-6 6v3h9l3-3"
 export const IconLayers = (p: P) => <Svg {...p}><path d="m12 3 9 5-9 5-9-5z" /><path d="m3 13 9 5 9-5" /></Svg>
 export const IconShield = (p: P) => <Svg {...p}><path d="M12 3 4 6v6c0 5 3.4 8.3 8 9 4.6-.7 8-4 8-9V6z" /><path d="m9 12 2 2 4-4" /></Svg>
 
-/** 서비스 로고 마크: 서류 위 체크 */
-export const LogoMark = ({ size = 22 }: P) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
-    <rect x="2" y="2" width="20" height="20" rx="6" fill="var(--color-accent)" />
-    <path d="M8 12.5l2.7 2.7L16.5 9" fill="none" stroke="var(--color-on-accent)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-)
+/**
+ * 서비스 로고 마크 (D3 · 도장 모노그램): 세관 도장처럼 살짝 기울인 테두리 안에 FTA, 모서리에 주황 확인 인장.
+ * 글자는 폰트가 아니라 선으로 그려 어디서나 같게 보인다. 작게 쓸수록(파비콘·사이드바) 획을 굵게 한다.
+ * 색: 바탕 = --color-accent, 획 = --color-on-accent, 인장 = --color-logo-seal, 인장 체크 = --color-brand-ink
+ */
+export const LogoMark = ({ size = 22 }: P) => {
+  const k = size <= 20 ? 1.3 : size <= 28 ? 1.12 : 1
+  return (
+    <svg className="logo-mark" width={size} height={size} viewBox="0 0 48 48" aria-hidden>
+      <rect className="lm-tile" width="48" height="48" rx="12" fill="var(--color-accent)" />
+      <g transform="rotate(-7 24 24)" fill="none" stroke="var(--color-on-accent)" strokeLinecap="round" strokeLinejoin="round">
+        <rect className="lm-ink" x="7" y="13" width="34" height="22" rx="4" strokeWidth={1.8 * k} />
+        <path
+          className="lm-ink"
+          d="M13 18.5v11M13 18.5h5M13 23.6h4M20.5 18.5h6.5M23.75 18.5v11M29 29.5L32.75 18.5L36.5 29.5M30.5 25.6h4.5"
+          strokeWidth={2.4 * k}
+        />
+      </g>
+      <circle className="lm-seal" cx="39" cy="35" r={k > 1 ? 5.5 : 4.5} fill="var(--color-logo-seal)" />
+      <path
+        className="lm-seal-check"
+        d="M37.1 35.1l1.4 1.4 2.5-2.7"
+        fill="none"
+        stroke="var(--color-brand-ink)"
+        strokeWidth={1.5 * k}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
