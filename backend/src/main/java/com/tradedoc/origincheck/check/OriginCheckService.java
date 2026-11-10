@@ -32,6 +32,7 @@ import java.util.LinkedHashSet;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import com.tradedoc.origincheck.demo.DemoUploadGuard;
 
 @Service
 public class OriginCheckService {
@@ -51,9 +52,11 @@ public class OriginCheckService {
     private final PdfBundler pdf;
     private final ObjectMapper objectMapper;
     private final CheckAgent agent;
+    private final DemoUploadGuard demoGuard;
 
     public OriginCheckService(OriginCheckRepository checks, OriginCheckFileRepository checkFiles, FileStorage storage,
-                              PdfBundler pdf, ObjectMapper objectMapper, CheckAgent agent) {
+                              PdfBundler pdf, ObjectMapper objectMapper, CheckAgent agent, DemoUploadGuard demoGuard) {
+        this.demoGuard = demoGuard;
         this.checks = checks;
         this.checkFiles = checkFiles;
         this.storage = storage;
@@ -70,6 +73,15 @@ public class OriginCheckService {
      */
     @Transactional
     public OriginCheckCreatedResponse create(Long userId, List<MultipartFile> files, String title, List<String> hints) {
+        return create(userId, false, files, title, hints);
+    }
+
+    /**
+     * @param demo 체험 사용자면 true. 올린 파일이 모두 한 체험 세트 안의 파일인지 내용(SHA-256)으로 검사하고(403 DEMO_SAMPLES_ONLY),
+     *             사용량 상한을 센 뒤 접수한다. 접수 뒤에는 정식 건과 같이 워커가 agent 로 보낸다
+     */
+    @Transactional
+    public OriginCheckCreatedResponse create(Long userId, boolean demo, List<MultipartFile> files, String title, List<String> hints) {
         if (files == null || files.isEmpty() || files.stream().allMatch(f -> f == null || f.isEmpty())) {
             throw new ApiException(ErrorCode.INVALID_FILE, "빈 파일입니다.");
         }
@@ -81,6 +93,9 @@ public class OriginCheckService {
             throw new ApiException(ErrorCode.FILE_TOO_LARGE, "한 번에 올리는 파일은 합계 100MB까지입니다.");
         }
         files.forEach(OriginCheckService::validatePdf);
+        if (demo) {
+            demoGuard.requireOneSet(files); // 저장하기 전에, 사용량을 세기 전에 거른다
+        }
 
         // 1) 원본을 하나씩 저장하고 쪽 수를 센다
         List<Stored> stored = new ArrayList<>();
@@ -129,8 +144,12 @@ public class OriginCheckService {
         }
 
         String t = title == null || title.isBlank() ? bundleName : title.trim();
-        OriginCheck check = checks.save(new OriginCheck(userId, t.length() > 200 ? t.substring(0, 200) : t,
-                cut(bundleName, 255), bundleKey, bundleSize));
+        OriginCheck draft = new OriginCheck(userId, t.length() > 200 ? t.substring(0, 200) : t,
+                cut(bundleName, 255), bundleKey, bundleSize);
+        if (demo) {
+            draft.markDemo();
+        }
+        OriginCheck check = checks.save(draft);
 
         // 3) 파일별 쪽 범위
         int page = 1;

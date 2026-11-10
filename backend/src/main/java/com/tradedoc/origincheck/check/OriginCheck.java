@@ -33,6 +33,10 @@ public class OriginCheck {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    /** 체험 사용자가 접수한 건. 워커가 동시 제출 수를 따로 묶는다 */
+    @Column(nullable = false)
+    private boolean demo;
+
     @Column(nullable = false, length = 200)
     private String title;
 
@@ -137,6 +141,14 @@ public class OriginCheck {
     @PreUpdate
     void preUpdate() {
         updatedAt = now();
+    }
+
+    public void markDemo() {
+        this.demo = true;
+    }
+
+    public boolean isDemo() {
+        return demo;
     }
 
     public void markSubmitted(String agentJobId, String agentFileId) {

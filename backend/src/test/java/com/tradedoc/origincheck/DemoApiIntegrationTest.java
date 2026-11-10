@@ -11,7 +11,9 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpHeaders;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -30,6 +32,7 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -176,7 +179,99 @@ class DemoApiIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    // ---------- 3. 체험 접수 검사 ----------
+
+    @Test
+    void 세트_파일을_전부_올리면_접수되고_워커가_제출한다() throws Exception {
+        String token = demoToken();
+        long id = upload(token, sample("kl-mackerel", "01_원산지증명서.pdf"), sample("kl-mackerel", "02_수출신고필증.pdf"),
+                sample("kl-mackerel", "03_인보이스.pdf"), sample("kl-mackerel", "04_원산지확인서.pdf"),
+                sample("kl-mackerel", "05_BL.pdf"), sample("kl-mackerel", "06_패킹리스트.pdf"));
+
+        assertThat(jdbc.queryForObject("select demo from origin_checks where id = ?", Boolean.class, id)).isTrue();
+        worker.tick();
+        assertThat(jdbc.queryForObject("select status from origin_checks where id = ?", String.class, id)).isEqualTo("IN_PROGRESS");
+        assertThat(AGENT.lastJobId).isNotNull();
+    }
+
+    @Test
+    void 세트_일부만_올려도_접수되고_이름을_바꿔도_내용으로_본다() throws Exception {
+        String token = demoToken();
+        upload(token, sample("de-led-bulbs", "01_인보이스.pdf"), sample("de-led-bulbs", "03_BL.pdf"));
+        upload(token, renamed(sample("th-led-monitor", "01_인보이스.pdf"), "invoice.pdf"));
+    }
+
+    @Test
+    void 체험용이_아닌_PDF나_두_세트를_섞으면_403() throws Exception {
+        String token = demoToken();
+        mvc.perform(multipartUpload(token, pdf("mine.pdf", pdfBytes())))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("DEMO_SAMPLES_ONLY"));
+        mvc.perform(multipartUpload(token, sample("kl-mackerel", "03_인보이스.pdf"), sample("vn-led-monitor", "01_인보이스.pdf")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("DEMO_SAMPLES_ONLY"));
+        // 체험용 파일 사이에 자기 PDF 를 하나 끼워도 막는다
+        mvc.perform(multipartUpload(token, sample("kl-mackerel", "03_인보이스.pdf"), pdf("03_인보이스.pdf", pdfBytes())))
+                .andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("select count(*) from origin_checks c join users u on u.id = c.user_id where u.email = ?",
+                Integer.class, email(token))).isZero();
+    }
+
+    @Test
+    void 정식_사용자는_체험_검사를_받지_않는다() throws Exception {
+        String token = signup();
+        long id = upload(token, pdf("mine.pdf", pdfBytes()));
+        assertThat(jdbc.queryForObject("select demo from origin_checks where id = ?", Boolean.class, id)).isFalse();
+    }
+
     // ---------- 도우미 ----------
+
+    String signup() throws Exception {
+        MvcResult r = mvc.perform(json(post("/api/v1/auth/signup"),
+                        "{\"email\":\"user-" + System.nanoTime() + "@example.com\",\"password\":\"password123\",\"name\":\"정식\"}"))
+                .andExpect(status().isCreated()).andReturn();
+        return body(r).get("access_token").asString();
+    }
+
+    String email(String token) throws Exception {
+        return body(mvc.perform(auth(get("/api/v1/auth/me"), token)).andReturn()).get("email").asString();
+    }
+
+    static MockMultipartFile sample(String setId, String name) throws Exception {
+        try (var in = new ClassPathResource("demo/" + setId + "/" + name).getInputStream()) {
+            return pdf(name, in.readAllBytes());
+        }
+    }
+
+    static MockMultipartFile pdf(String name, byte[] bytes) {
+        return new MockMultipartFile("file", name, "application/pdf", bytes);
+    }
+
+    static MockMultipartFile renamed(MockMultipartFile f, String name) throws Exception {
+        return pdf(name, f.getBytes());
+    }
+
+    static byte[] pdfBytes() throws Exception {
+        try (var d = new org.apache.pdfbox.pdmodel.PDDocument(); var out = new java.io.ByteArrayOutputStream()) {
+            d.addPage(new org.apache.pdfbox.pdmodel.PDPage());
+            d.save(out);
+            return out.toByteArray();
+        }
+    }
+
+    org.springframework.test.web.servlet.RequestBuilder multipartUpload(String token, MockMultipartFile... files) {
+        var b = multipart("/api/v1/origin-checks");
+        for (MockMultipartFile f : files) {
+            b.file(f);
+        }
+        b.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+        return b;
+    }
+
+    long upload(String token, MockMultipartFile... files) throws Exception {
+        MvcResult r = mvc.perform(multipartUpload(token, files)).andExpect(status().isAccepted()).andReturn();
+        return body(r).get("id").asLong();
+    }
 
     String demoToken() throws Exception {
         return body(mvc.perform(post("/api/v1/auth/demo")).andExpect(status().isCreated()).andReturn())

@@ -45,7 +45,7 @@ public class OriginCheckController {
                                                              @RequestPart("file") List<MultipartFile> files,
                                                              @RequestParam(value = "title", required = false) String title,
                                                              @RequestParam(value = "hint", required = false) List<String> hints) {
-        OriginCheckCreatedResponse created = service.create(user.id(), files, title, hints);
+        OriginCheckCreatedResponse created = service.create(user.id(), user.demo(), files, title, hints);
         var location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(created.id()).toUri();
         return ResponseEntity.accepted().location(location).body(created);
     }
