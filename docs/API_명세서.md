@@ -40,6 +40,7 @@
 |---|---|---|---|
 | `POST` | `/api/v1/auth/signup` | - | 회원가입. 성공하면 바로 토큰을 준다(자동 로그인) |
 | `POST` | `/api/v1/auth/login` | - | 로그인. JWT 발급 |
+| `POST` | `/api/v1/auth/demo` | - | 체험 사용자를 만들고 토큰 발급(계정 없이 써 보기, §2.7) |
 | `GET` | `/api/v1/auth/me` | O | 내 정보 |
 | `POST` | `/api/v1/origin-checks` | O | 서류 묶음 PDF 접수 → 202 |
 | `GET` | `/api/v1/origin-checks` | O | 내 점검 목록(최신순, 페이지) |
@@ -49,6 +50,8 @@
 | `DELETE` | `/api/v1/origin-checks/{id}/done` | O | 완료 처리 되돌리기 |
 | `POST` | `/api/v1/origin-checks/{id}/retry` | O | 실패한 건 다시 실행 (같은 파일) |
 | `DELETE` | `/api/v1/origin-checks/{id}` | O | 점검 건 삭제 (원본 파일 포함) |
+| `GET` | `/api/v1/demo/samples` | - | 체험용 서류 목록(§2.7) |
+| `GET` | `/api/v1/demo/samples/{setId}/{fileName}` | - | 체험용 PDF 원본(§2.7) |
 | `GET` | `/api/v1/health` | - | `{"ok": true}` |
 
 ### 2.1 인증 (JWT)
@@ -95,8 +98,10 @@
 응답 200 — `MeResponse`
 
 ```json
-{"id": 1, "email": "tester@example.com", "name": "테스터", "company": "사카밤바스피스", "expires_at": "2026-11-07T16:11:49Z"}
+{"id": 1, "email": "tester@example.com", "name": "테스터", "company": "사카밤바스피스", "expires_at": "2026-11-07T16:11:49Z", "demo": false}
 ```
+
+`demo`: 체험 사용자면 true(§2.7). `expires_at` 은 토큰 만료 시각이다(체험 사용자도 같다).
 
 ### 2.2 `POST /api/v1/origin-checks` — 점검 접수
 
@@ -230,13 +235,17 @@ curl -X POST "$BASE/api/v1/origin-checks" -H "Authorization: Bearer $TOKEN" \
 | 401 | `TOKEN_EXPIRED` | 토큰 만료 — 다시 로그인 |
 | 401 | `INVALID_CREDENTIALS` | 로그인 실패 |
 | 403 | `SIGNUP_NOT_ALLOWED` | 가입 허용 목록(`SIGNUP_ALLOWED_EMAILS`)에 없는 이메일 |
-| 404 | `ORIGIN_CHECK_NOT_FOUND` · `NOT_FOUND` | 점검 건 없음 · 경로 없음 |
+| 403 | `DEMO_SAMPLES_ONLY` | 체험 사용자가 체험용 서류가 아닌 파일을 올렸거나 두 폴더를 섞음(§2.7) |
+| 404 | `ORIGIN_CHECK_NOT_FOUND` · `NOT_FOUND` | 점검 건 없음 · 경로 없음. 체험이 꺼져 있으면(`DEMO_ENABLED=false`) 체험 API 도 404 |
 | 409 | `EMAIL_ALREADY_EXISTS` | 가입된 이메일 |
 | 409 | `CHECK_NOT_FINISHED` | 처리 중인 점검 건을 완료 처리하려 함 |
 | 409 | `CHECK_NOT_FAILED` | 실패가 아닌 건을 다시 실행하려 함 |
 | 409 | `CHECK_IN_PROGRESS` | AI 가 처리 중인 건을 삭제하려 함 |
 | 413 | `FILE_TOO_LARGE` | 합계 100MB 초과 |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | PDF 가 아닌 Content-Type |
+| 429 | `DEMO_LIMIT` | 체험 사용자가 점검을 상한(기본 3건)만큼 이미 접수함 |
+| 429 | `DEMO_DAILY_LIMIT` | 서비스 전체 하루 체험 점검 상한(기본 50건, KST 자정 초기화)에 닿음 |
+| 429 | `DEMO_RATE_LIMIT` | 같은 IP 가 체험 토큰을 시간당 상한(기본 10번)보다 많이 요청함 |
 | 500 | `INTERNAL_ERROR` | 서버 오류 |
 | 502 | `AGENT_UNAVAILABLE` | 삭제 중 Upstage 쪽 파일을 지우지 못함 |
 | 503 | `AUTH_NOT_CONFIGURED` | 서버에 `JWT_SECRET` 이 없음 |
@@ -251,6 +260,64 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
 | `RESULT_PARSE_ERROR` | agent 응답을 결과 형식으로 바꾸지 못함 |
 | `RESULT_INCOMPLETE` | (status 는 completed) 판정 노드 출력 등 일부가 없음 |
 
+### 2.7 체험하기 (계정 없이 써 보기)
+
+가입하지 않은 방문자가 체험용 서류 4세트로 실제 점검(실제 Upstage 호출)까지 해 볼 수 있다. 기획은 `docs/체험하기_기획.md`.
+
+#### `POST /api/v1/auth/demo` — 체험 사용자 만들기 (인증 없음)
+
+요청 본문 없음. 응답 **201** — 로그인과 같은 `TokenResponse`. 토큰은 2시간짜리이고 JWT 에 `demo: true` 클레임이 있다.
+
+```json
+{"access_token": "eyJ…", "token_type": "bearer", "expires_in": 7200}
+```
+
+- 이메일 `demo-{uuid}@demo.invalid`, 이름 "체험 사용자", 회사 null 인 사용자를 만든다. `SIGNUP_ALLOWED_EMAILS` 와 무관하다.
+- 체험 계정으로는 로그인할 수 없다(`INVALID_CREDENTIALS`). 토큰이 만료되면 새 체험을 시작한다.
+- 체험 사용자와 그 데이터(점검 건·원본 PDF·agent 파일)는 만든 뒤 24시간이 지나면 정리 작업(1시간마다)이 지운다.
+- 오류: 429 `DEMO_RATE_LIMIT`(IP 당 시간당 10번) · 404(체험 꺼짐)
+- 하루 상한에 닿아도 토큰 발급은 막지 않는다(둘러보기는 된다). 접수만 막는다.
+
+#### `GET /api/v1/demo/samples` — 체험용 서류 목록 (인증 없음)
+
+```json
+{
+  "sets": [
+    {
+      "id": "kl-mackerel",
+      "name": "말레이시아 · 냉동 고등어",
+      "files": [
+        {"name": "01_원산지증명서.pdf", "size": 172065, "hint_type": "원산지증명서"},
+        {"name": "02_수출신고필증.pdf", "size": 319743, "hint_type": "수출신고필증"}
+      ]
+    }
+  ]
+}
+```
+
+| `id` | `name` | 원본 | 파일 | 정답 판정 |
+|---|---|---|---|---|
+| `kl-mackerel` | 말레이시아 · 냉동 고등어 | set04 | 6 | 보완 요청 |
+| `th-led-monitor` | 태국 · LED 모니터 외 1건 | set03 | 6 | 검토 필요 |
+| `vn-led-monitor` | 베트남 · LED 모니터 | set11 | 6 | 미적용 |
+| `de-led-bulbs` | 독일 · LED 전구 | set02 | 5 | 특혜 적용 |
+
+`hint_type` 은 `POST /origin-checks` 의 `hint` 값과 같은 표기(인보이스 · 패킹리스트 · B/L · 원산지증명서 · 원산지확인서 · 수출신고필증)다.
+
+#### `GET /api/v1/demo/samples/{setId}/{fileName}` — 체험용 PDF (인증 없음)
+
+응답 200 `application/pdf`, `Cache-Control: max-age=86400, public`. `fileName` 은 목록의 `name` 그대로(URL 인코딩). 목록에 없는 이름은 404.
+
+#### 체험 사용자의 점검 접수 (`POST /api/v1/origin-checks`)
+
+정식 사용자와 같은 API 다. 체험 토큰이면 서버가 추가로 검사한다.
+
+1. 올린 파일마다 **내용의 SHA-256** 을 체험용 서류와 비교한다. 모두 **한 세트 안의 파일**이어야 접수한다(일부만 와도 된다. 파일 이름은 보지 않는다). 아니면 403 `DEMO_SAMPLES_ONLY`.
+2. 사용량: 체험 사용자당 3건(429 `DEMO_LIMIT`), 서비스 전체 하루 50건(429 `DEMO_DAILY_LIMIT`). 실패한 건도 1건으로 세고, 다시 실행(`/retry`)은 세지 않는다. 건을 지워도 줄지 않는다.
+3. 접수 뒤에는 정식 건과 똑같이 워커가 Upstage 로 보낸다. 다만 체험 건은 **동시에 2건까지만** 처리하고 나머지는 기다린다(정식 건은 따로 처리해 밀리지 않는다). 기다리는 동안 상세의 `queue_position` 이 순번을 알려 준다.
+
+다시 실행·삭제·완료 처리·원본 PDF 는 정식 사용자와 같다.
+
 ## 3. `OriginCheckResponse` — 점검 상세
 
 점검 건 정보 + AI agent 결과(`AgentCheckResult`)를 한 객체로 준다. 결과 부분은 DB `origin_checks.result_json` 에 저장된 그대로다.
@@ -261,6 +328,7 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
 | `title` | string | 심사 제목 |
 | `file_name` | string | 올린 파일명 |
 | `status` | `CheckStatus` | `queued` · `in_progress` · `completed` · `failed` |
+| `queue_position` | integer \| null | 체험 건이 `queued` 면 체험 대기열 순번(1 = 다음 차례). 정식 건이거나 대기 중이 아니면 null(§2.7) |
 | `created_at` | string (date-time) | 접수 시각 (UTC) |
 | `completed_at` | string (date-time) \| null | 끝난 시각 (completed·failed) |
 | `done_at` | string (date-time) \| null | 담당자 완료 처리 시각. 진행 중이면 null |
@@ -651,6 +719,11 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
 | `JWT_SECRET` | (없음) | 32바이트 이상. 없으면 인증 API 가 503 |
 | `JWT_EXPIRES_MIN` | 60 | 토큰 유효 시간(분) |
 | `SIGNUP_ALLOWED_EMAILS` | (없음 = 누구나) | 가입 허용 이메일. 쉼표로 여러 개, `@acme.com` 은 도메인 전체. 공개 서버에서는 꼭 채운다 |
+| `DEMO_ENABLED` | true | false 면 체험 API 3개가 404 |
+| `DEMO_TOKEN_TTL` · `DEMO_DATA_TTL` | 2h · 24h | 체험 토큰 유효 시간 · 체험 데이터 보관 시간 |
+| `DEMO_PER_USER_LIMIT` · `DEMO_DAILY_LIMIT` | 3 · 50 | 체험 사용자당 · 하루 전체 체험 점검 수 |
+| `DEMO_MAX_CONCURRENT` | 2 | 동시에 처리하는 체험 건 수 |
+| `DEMO_TOKENS_PER_IP_HOUR` | 10 | IP 하나가 한 시간에 받을 수 있는 체험 토큰 수 |
 | `CORS_ALLOWED_ORIGINS` | http://localhost:5173 | 쉼표로 여러 개 |
 | `AGENT_MODE` | upstage | `upstage` · `fake` |
 | `AGENT_FAKE_RESULT` · `AGENT_FAKE_DELAY` | · 10s | fake 모드 결과 파일 · 지연 |
