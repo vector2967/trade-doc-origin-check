@@ -31,6 +31,13 @@ public class User {
     @Column(length = 100)
     private String company;
 
+    /** 체험 사용자(계정 없이 써 보기). 로그인할 수 없고 expires_at 뒤에 지워진다 */
+    @Column(nullable = false)
+    private boolean demo;
+
+    @Column(name = "expires_at")
+    private Instant expiresAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -42,6 +49,14 @@ public class User {
         this.passwordHash = passwordHash;
         this.name = name;
         this.company = company;
+    }
+
+    /** 체험 사용자. 비밀번호 해시는 아무도 모르는 값이고, 로그인은 {@code demo} 로 따로 막는다 */
+    public static User demo(String email, String unusablePasswordHash, Instant expiresAt) {
+        User u = new User(email, unusablePasswordHash, "체험 사용자", null);
+        u.demo = true;
+        u.expiresAt = expiresAt.truncatedTo(ChronoUnit.MICROS);
+        return u;
     }
 
     @PrePersist
@@ -67,6 +82,14 @@ public class User {
 
     public String getCompany() {
         return company;
+    }
+
+    public boolean isDemo() {
+        return demo;
+    }
+
+    public Instant getExpiresAt() {
+        return expiresAt;
     }
 
     public Instant getCreatedAt() {

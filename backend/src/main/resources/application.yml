@@ -35,6 +35,15 @@ app:
   signup:
     # 가입 허용 이메일(쉼표로 여러 개, '@acme.com' 은 도메인 전체). 비우면 누구나 가입 → 공개 서버에서는 꼭 채운다
     allowed-emails: ${SIGNUP_ALLOWED_EMAILS:}
+  demo:
+    # 체험하기(계정 없이 써 보기). false 면 체험 API 3개(/auth/demo, /demo/samples, /demo/samples/…)가 404
+    enabled: ${DEMO_ENABLED:true}
+    token-ttl: ${DEMO_TOKEN_TTL:2h}
+    data-ttl: ${DEMO_DATA_TTL:24h}
+    per-user-limit: ${DEMO_PER_USER_LIMIT:3}
+    daily-limit: ${DEMO_DAILY_LIMIT:50}
+    max-concurrent: ${DEMO_MAX_CONCURRENT:2}
+    tokens-per-ip-hour: ${DEMO_TOKENS_PER_IP_HOUR:10}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   storage:

@@ -5,6 +5,7 @@ import com.tradedoc.origincheck.auth.dto.MeResponse;
 import com.tradedoc.origincheck.auth.dto.SignupRequest;
 import com.tradedoc.origincheck.auth.dto.TokenResponse;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,6 +34,13 @@ public class AuthController {
     @PostMapping("/login")
     public TokenResponse login(@Valid @RequestBody LoginRequest req) {
         return authService.login(req);
+    }
+
+    /** 체험 사용자를 만들고 토큰을 준다(인증 없음). 체험이 꺼져 있으면 404 */
+    @PostMapping("/demo")
+    @ResponseStatus(HttpStatus.CREATED)
+    public TokenResponse demo(HttpServletRequest request) {
+        return authService.startDemo(request.getRemoteAddr()); // 프록시 뒤에서는 X-Forwarded-For 가 반영된 값(forward-headers-strategy)
     }
 
     @GetMapping("/me")

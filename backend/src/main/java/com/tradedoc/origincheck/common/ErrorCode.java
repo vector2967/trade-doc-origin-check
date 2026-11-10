@@ -19,6 +19,10 @@ public enum ErrorCode {
     CHECK_NOT_FAILED(HttpStatus.CONFLICT, "실패한 점검 건만 다시 실행할 수 있습니다."),
     CHECK_IN_PROGRESS(HttpStatus.CONFLICT, "AI 가 처리 중인 점검 건은 삭제할 수 없습니다. 끝난 뒤 다시 시도하세요."),
     AGENT_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "AI agent 쪽 파일을 지우지 못했습니다. 잠시 뒤 다시 시도하세요."),
+    DEMO_SAMPLES_ONLY(HttpStatus.FORBIDDEN, "체험에서는 체험용 서류 창의 파일만, 한 폴더 안에서 골라 올릴 수 있어요."),
+    DEMO_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "체험에서는 점검을 3건까지 할 수 있어요. 가입하면 계속 쓸 수 있어요."),
+    DEMO_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "오늘 체험 점검이 모두 찼어요. 내일 다시 오거나 가입해서 써 주세요."),
+    DEMO_RATE_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "잠시 뒤에 다시 시도해 주세요."),
     AUTH_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "서버 인증 설정(JWT_SECRET)이 없습니다."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
 
