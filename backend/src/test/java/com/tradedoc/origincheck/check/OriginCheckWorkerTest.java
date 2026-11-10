@@ -50,12 +50,21 @@ class OriginCheckWorkerTest {
                 .filter(c -> c.getStatus() == inv.getArgument(0)).toList());
         when(repo.findTop20ByStatusAndNextSubmitAtLessThanEqualOrderByIdAsc(any(), any())).thenAnswer(inv -> db.values().stream()
                 .filter(c -> c.getStatus() == inv.getArgument(0) && !c.getNextSubmitAt().isAfter(inv.getArgument(1))).toList());
+        when(repo.findTop20ByDemoFalseAndStatusAndNextSubmitAtLessThanEqualOrderByIdAsc(any(), any())).thenAnswer(inv -> db.values().stream()
+                .filter(c -> !c.isDemo() && c.getStatus() == inv.getArgument(0) && !c.getNextSubmitAt().isAfter(inv.getArgument(1))).toList());
+        when(repo.findByDemoTrueAndStatusAndNextSubmitAtLessThanEqualOrderByIdAsc(any(), any(), any())).thenAnswer(inv -> db.values().stream()
+                .filter(c -> c.isDemo() && c.getStatus() == inv.getArgument(0) && !c.getNextSubmitAt().isAfter(inv.getArgument(1)))
+                .sorted(java.util.Comparator.comparing(OriginCheck::getId))
+                .limit(inv.<org.springframework.data.domain.Pageable>getArgument(2).getPageSize()).toList());
+        when(repo.countByDemoTrueAndStatus(any())).thenAnswer(inv -> db.values().stream()
+                .filter(c -> c.isDemo() && c.getStatus() == inv.getArgument(0)).count());
         when(repo.findTop20ByStatusInAndAgentFileIdIsNotNullOrderByIdAsc(any())).thenAnswer(inv -> db.values().stream()
                 .filter(c -> inv.<List<CheckStatus>>getArgument(0).contains(c.getStatus()) && c.getAgentFileId() != null).toList());
         FileStorage storage = mock(FileStorage.class);
         when(storage.path(any())).thenAnswer(inv -> Path.of("/files", inv.<String>getArgument(0)));
         AgentProperties props = new AgentProperties("test", null, Duration.ZERO, 1000, Duration.ofMinutes(30), 3, Duration.ofSeconds(10));
-        worker = new OriginCheckWorker(repo, agent, storage, props, mapper, new TransactionTemplate(new NoopTxManager()));
+        worker = new OriginCheckWorker(repo, agent, storage, props, mapper, new TransactionTemplate(new NoopTxManager()),
+                new com.tradedoc.origincheck.demo.DemoProperties(true, null, null, null, null, 2, null));
     }
 
     @Test
@@ -324,6 +333,23 @@ class OriginCheckWorkerTest {
         assertThat(c.getErrorCode()).isEqualTo(code);
         assertThat(c.getErrorMessage()).contains(messagePart);
         assertThat(c.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    void 체험_건은_동시에_2건까지만_제출하고_정식_건은_막지_않는다() {
+        for (long id = 1; id <= 3; id++) {
+            queued(id).markDemo();
+        }
+        queued(4L); // 정식 건
+        worker.tick();
+
+        assertThat(db.get(1L).getStatus()).isEqualTo(CheckStatus.IN_PROGRESS);
+        assertThat(db.get(2L).getStatus()).isEqualTo(CheckStatus.IN_PROGRESS);
+        assertThat(db.get(3L).getStatus()).isEqualTo(CheckStatus.QUEUED);      // 자리가 없어 기다린다
+        assertThat(db.get(4L).getStatus()).isEqualTo(CheckStatus.IN_PROGRESS); // 정식 건은 바로
+
+        worker.tick(); // 아직 두 건이 처리 중이라 그대로
+        assertThat(db.get(3L).getStatus()).isEqualTo(CheckStatus.QUEUED);
     }
 
     private OriginCheck queued(Long id) {

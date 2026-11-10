@@ -32,6 +32,7 @@ import java.util.LinkedHashSet;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import com.tradedoc.origincheck.demo.DemoQuota;
 import com.tradedoc.origincheck.demo.DemoUploadGuard;
 
 @Service
@@ -53,10 +54,13 @@ public class OriginCheckService {
     private final ObjectMapper objectMapper;
     private final CheckAgent agent;
     private final DemoUploadGuard demoGuard;
+    private final DemoQuota demoQuota;
 
     public OriginCheckService(OriginCheckRepository checks, OriginCheckFileRepository checkFiles, FileStorage storage,
-                              PdfBundler pdf, ObjectMapper objectMapper, CheckAgent agent, DemoUploadGuard demoGuard) {
+                              PdfBundler pdf, ObjectMapper objectMapper, CheckAgent agent, DemoUploadGuard demoGuard,
+                              DemoQuota demoQuota) {
         this.demoGuard = demoGuard;
+        this.demoQuota = demoQuota;
         this.checks = checks;
         this.checkFiles = checkFiles;
         this.storage = storage;
@@ -95,6 +99,7 @@ public class OriginCheckService {
         files.forEach(OriginCheckService::validatePdf);
         if (demo) {
             demoGuard.requireOneSet(files); // 저장하기 전에, 사용량을 세기 전에 거른다
+            demoQuota.consume(userId);       // 429 DEMO_LIMIT · DEMO_DAILY_LIMIT. 아래에서 실패하면 롤백되어 되돌아간다
         }
 
         // 1) 원본을 하나씩 저장하고 쪽 수를 센다
@@ -182,7 +187,10 @@ public class OriginCheckService {
         OriginCheck c = find(userId, id);
         AgentCheckResult result = c.getResultJson() == null ? null
                 : objectMapper.readValue(c.getResultJson(), AgentCheckResult.class);
-        return OriginCheckResponse.of(c, result, checkFiles.findByCheckIdOrderBySeqAsc(c.getId()));
+        // 체험 건이 대기 중이면 체험 대기열에서 몇 번째인지(1 = 다음 차례). 그 밖에는 null
+        Integer queuePosition = c.isDemo() && c.getStatus() == CheckStatus.QUEUED
+                ? (int) checks.countByDemoTrueAndStatusAndIdLessThan(CheckStatus.QUEUED, c.getId()) + 1 : null;
+        return OriginCheckResponse.of(c, result, checkFiles.findByCheckIdOrderBySeqAsc(c.getId()), queuePosition);
     }
 
     /**

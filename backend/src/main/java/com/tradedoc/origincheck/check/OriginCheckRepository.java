@@ -21,6 +21,17 @@ public interface OriginCheckRepository extends JpaRepository<OriginCheck, Long> 
     /** 제출할 차례가 된 건(재시도 대기 중인 건은 빼고) */
     List<OriginCheck> findTop20ByStatusAndNextSubmitAtLessThanEqualOrderByIdAsc(CheckStatus status, Instant now);
 
+    /** 제출할 차례가 된 정식 건 */
+    List<OriginCheck> findTop20ByDemoFalseAndStatusAndNextSubmitAtLessThanEqualOrderByIdAsc(CheckStatus status, Instant now);
+
+    /** 제출할 차례가 된 체험 건(빈 자리만큼) */
+    List<OriginCheck> findByDemoTrueAndStatusAndNextSubmitAtLessThanEqualOrderByIdAsc(CheckStatus status, Instant now, Pageable pageable);
+
+    long countByDemoTrueAndStatus(CheckStatus status);
+
+    /** 체험 대기열에서 이 건보다 앞에 있는 건 수 */
+    long countByDemoTrueAndStatusAndIdLessThan(CheckStatus status, Long id);
+
     /** 끝났는데 agent 쪽 파일이 아직 남은 건 */
     List<OriginCheck> findTop20ByStatusInAndAgentFileIdIsNotNullOrderByIdAsc(List<CheckStatus> statuses);
 }

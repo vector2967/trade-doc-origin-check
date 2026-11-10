@@ -89,6 +89,9 @@ class DemoApiIntegrationTest {
     @BeforeEach
     void reset() {
         AGENT.reset();
+        // 앞 테스트가 남긴 체험 건이 동시 제출 자리·대기 순번을 차지하지 않게 끝난 것으로 둔다
+        jdbc.update("UPDATE origin_checks SET status = 'FAILED' WHERE demo AND status IN ('QUEUED', 'IN_PROGRESS')");
+        jdbc.update("DELETE FROM demo_daily_usage");
     }
 
     // ---------- 1. 체험 사용자 ----------
@@ -224,6 +227,70 @@ class DemoApiIntegrationTest {
         assertThat(jdbc.queryForObject("select demo from origin_checks where id = ?", Boolean.class, id)).isFalse();
     }
 
+    // ---------- 4. 사용량·부하 관리 ----------
+
+    @Test
+    void 체험_사용자는_3건까지_실패한_건도_세고_다시_실행은_세지_않는다() throws Exception {
+        String token = demoToken();
+        long first = upload(token, sample("kl-mackerel", "03_인보이스.pdf"));
+        upload(token, sample("kl-mackerel", "05_BL.pdf"));
+
+        // 첫 건을 실패시킨 뒤 다시 실행해도 사용량은 그대로(2건)
+        jdbc.update("UPDATE origin_checks SET status = 'FAILED' WHERE id = ?", first);
+        mvc.perform(auth(post("/api/v1/origin-checks/" + first + "/retry"), token)).andExpect(status().isAccepted());
+        assertThat(used(token)).isEqualTo(2);
+
+        upload(token, sample("kl-mackerel", "06_패킹리스트.pdf"));
+        mvc.perform(multipartUpload(token, sample("kl-mackerel", "01_원산지증명서.pdf")))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("DEMO_LIMIT"));
+        assertThat(used(token)).isEqualTo(3);
+
+        // 건을 지워도 사용량은 줄지 않는다
+        jdbc.update("UPDATE origin_checks SET status = 'COMPLETED' WHERE id = ?", first);
+        mvc.perform(auth(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/v1/origin-checks/" + first), token))
+                .andExpect(status().isNoContent());
+        mvc.perform(multipartUpload(token, sample("kl-mackerel", "01_원산지증명서.pdf")))
+                .andExpect(jsonPath("$.code").value("DEMO_LIMIT"));
+    }
+
+    @Test
+    void 하루_상한에_닿으면_DEMO_DAILY_LIMIT_이고_개인_사용량은_되돌린다() throws Exception {
+        String token = demoToken();
+        jdbc.update("INSERT INTO demo_daily_usage (day, used) VALUES (?, 50)",
+                java.sql.Date.valueOf(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))));
+
+        mvc.perform(multipartUpload(token, sample("kl-mackerel", "03_인보이스.pdf")))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("DEMO_DAILY_LIMIT"));
+        assertThat(used(token)).isZero();
+
+        // 둘러보기(토큰 발급)는 막지 않는다
+        mvc.perform(post("/api/v1/auth/demo")).andExpect(status().isCreated());
+        // 정식 사용자는 상관없다
+        upload(signup(), pdf("mine.pdf", pdfBytes()));
+    }
+
+    @Test
+    void 체험_건_대기_순번과_동시_제출_제한() throws Exception {
+        long a = upload(demoToken(), sample("vn-led-monitor", "01_인보이스.pdf"));
+        long b = upload(demoToken(), sample("vn-led-monitor", "03_BL.pdf"));
+        long c = upload(demoToken(), sample("vn-led-monitor", "06_수출신고필증.pdf"));
+        String user = signup();
+        long regular = upload(user, pdf("mine.pdf", pdfBytes()));
+
+        String tc = tokenOf(c);
+        mvc.perform(auth(get("/api/v1/origin-checks/" + c), tc)).andExpect(jsonPath("$.queue_position").value(3));
+        mvc.perform(auth(get("/api/v1/origin-checks/" + regular), user)).andExpect(jsonPath("$.queue_position").doesNotExist());
+
+        worker.tick(); // 체험 2건 + 정식 건 제출, 체험 1건은 대기
+        assertThat(statusOf(a)).isEqualTo("IN_PROGRESS");
+        assertThat(statusOf(b)).isEqualTo("IN_PROGRESS");
+        assertThat(statusOf(c)).isEqualTo("QUEUED");
+        assertThat(statusOf(regular)).isEqualTo("IN_PROGRESS");
+        mvc.perform(auth(get("/api/v1/origin-checks/" + c), tc)).andExpect(jsonPath("$.queue_position").value(1));
+    }
+
     // ---------- 도우미 ----------
 
     String signup() throws Exception {
@@ -271,6 +338,23 @@ class DemoApiIntegrationTest {
     long upload(String token, MockMultipartFile... files) throws Exception {
         MvcResult r = mvc.perform(multipartUpload(token, files)).andExpect(status().isAccepted()).andReturn();
         return body(r).get("id").asLong();
+    }
+
+    int used(String token) throws Exception {
+        return jdbc.queryForObject("select demo_checks_used from users where email = ?", Integer.class, email(token));
+    }
+
+    String statusOf(long id) {
+        return jdbc.queryForObject("select status from origin_checks where id = ?", String.class, id);
+    }
+
+    /** 점검 건 주인의 토큰(테스트용으로 같은 비밀 키로 만든다) */
+    String tokenOf(long checkId) {
+        var row = jdbc.queryForMap("select u.id, u.email from users u join origin_checks c on c.user_id = u.id where c.id = ?", checkId);
+        return io.jsonwebtoken.Jwts.builder().subject(String.valueOf(row.get("id"))).claim("email", row.get("email")).claim("demo", true)
+                .issuer("fta-origin-check-api").issuedAt(new java.util.Date())
+                .expiration(new java.util.Date(System.currentTimeMillis() + 600_000))
+                .signWith(io.jsonwebtoken.security.Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8))).compact();
     }
 
     String demoToken() throws Exception {

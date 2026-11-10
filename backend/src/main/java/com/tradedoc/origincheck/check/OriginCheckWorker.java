@@ -16,6 +16,8 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
 import java.time.Instant;
+import com.tradedoc.origincheck.demo.DemoProperties;
+import org.springframework.data.domain.PageRequest;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -42,8 +44,11 @@ public class OriginCheckWorker {
     private final ObjectMapper objectMapper;
     private final TransactionTemplate tx;
 
+    private final DemoProperties demo;
+
     public OriginCheckWorker(OriginCheckRepository checks, CheckAgent agent, FileStorage storage,
-                             AgentProperties props, ObjectMapper objectMapper, TransactionTemplate tx) {
+                             AgentProperties props, ObjectMapper objectMapper, TransactionTemplate tx, DemoProperties demo) {
+        this.demo = demo;
         this.checks = checks;
         this.agent = agent;
         this.storage = storage;
@@ -54,8 +59,15 @@ public class OriginCheckWorker {
 
     @Scheduled(fixedDelayString = "${app.agent.poll-interval-ms:5000}", initialDelayString = "${app.agent.initial-delay-ms:3000}")
     public void tick() {
-        checks.findTop20ByStatusAndNextSubmitAtLessThanEqualOrderByIdAsc(CheckStatus.QUEUED, Instant.now())
+        Instant now = Instant.now();
+        checks.findTop20ByDemoFalseAndStatusAndNextSubmitAtLessThanEqualOrderByIdAsc(CheckStatus.QUEUED, now)
                 .forEach(c -> safely(c, this::submit));
+        // 체험 건은 동시에 agent 에 맡겨 두는 수를 따로 묶는다 → 체험이 몰려도 정식 건은 밀리지 않는다
+        long free = demo.maxConcurrent() - checks.countByDemoTrueAndStatus(CheckStatus.IN_PROGRESS);
+        if (free > 0) {
+            checks.findByDemoTrueAndStatusAndNextSubmitAtLessThanEqualOrderByIdAsc(CheckStatus.QUEUED, now,
+                    PageRequest.of(0, (int) Math.min(free, 20))).forEach(c -> safely(c, this::submit));
+        }
         checks.findTop20ByStatusOrderByIdAsc(CheckStatus.IN_PROGRESS).forEach(c -> safely(c, this::poll));
         checks.findTop20ByStatusInAndAgentFileIdIsNotNullOrderByIdAsc(FINISHED).forEach(c -> safely(c, this::cleanup));
     }
