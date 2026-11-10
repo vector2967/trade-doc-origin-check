@@ -10,7 +10,7 @@ import { ChecksProvider } from '../checks/ChecksContext'
 import { useChecks } from '../checks/useChecks'
 import { CheckSidebar } from './CheckSidebar'
 import { keepListParams } from '../checks/listParams'
-import { IconFolder, IconUpload } from './icons'
+import { IconFile, IconFolder, IconUpload } from './icons'
 import { NewCheckModal, type CreatedCheck, type IncomingFiles } from './NewCheckModal'
 import { Tutorial } from './Tutorial'
 import { tutorialSeen } from '../utils/tutorialSeen'
@@ -168,6 +168,20 @@ function Shell() {
       />
       <main className="workspace">
         <Outlet context={{ openNew }} />
+        {/* 체험: 처음 한 번은 서류를 어디에 놓으면 되는지 작업 영역에 크게 보여 준다 */}
+        {demo && explorer.state === 'open' && !explorer.dropped && !showNew && !dragging && (
+          <div className="demo-drop-guide" aria-hidden>
+            <div className="demo-drop-guide-card">
+              <span className="demo-drop-guide-icon"><IconUpload size={26} /></span>
+              <p className="demo-drop-guide-title">체험용 서류를 여기로 끌어다 놓으세요</p>
+              <p className="demo-drop-guide-sub">
+                <span className="only-wide">오른쪽 아래 창에서 파일(또는 폴더)을 잡고 이 영역으로 옮기면 점검 창이 열려요</span>
+                <span className="only-narrow">아래 창에서 파일을 고르고 [점검 시작]을 누르세요</span>
+              </p>
+              <span className="demo-drop-guide-ghost"><IconFile size={18} /><b>6</b></span>
+            </div>
+          </div>
+        )}
       </main>
       {showTutorial && user && !showNew && (
         <Tutorial

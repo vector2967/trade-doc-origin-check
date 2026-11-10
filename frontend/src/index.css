@@ -262,7 +262,7 @@ input:focus, select:focus, textarea:focus {
   display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
   background: var(--color-bg-subtle);
 }
-.workspace { min-width: 0; min-height: 0; padding: var(--space-2) var(--space-2) var(--space-2) 0; }
+.workspace { position: relative; min-width: 0; min-height: 0; padding: var(--space-2) var(--space-2) var(--space-2) 0; }
 
 /* 사이드바 */
 .sidebar { display: flex; flex-direction: column; min-height: 0; padding: var(--space-3) var(--space-3) var(--space-2) var(--space-3); gap: var(--space-3); }
@@ -1466,4 +1466,46 @@ a.sb-row:focus-visible { outline-offset: -2px; }
   .dx-row { grid-template-columns: 28px minmax(0, 1fr) 56px; }
   .dx-type { display: none; }
   .demo-explorer-chip { right: 16px; bottom: 16px; }
+}
+
+/* 체험: 처음 한 번 '여기로 끌어다 놓으세요' 안내 (작업 영역 위, 클릭은 통과) */
+.demo-drop-guide {
+  position: absolute; inset: var(--space-2) var(--space-2) var(--space-2) 0; z-index: var(--z-sticky); pointer-events: none;
+  display: grid; justify-items: center; align-items: start; padding: clamp(var(--space-6), 9vh, 96px) var(--space-6) var(--space-6);
+  border: 2px dashed color-mix(in srgb, var(--color-accent) 55%, transparent); border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--color-accent-subtle) 85%, transparent); backdrop-filter: blur(2px);
+  animation: demo-guide-pulse 2.4s var(--ease-out) infinite;
+}
+.demo-drop-guide-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--space-2); max-width: 420px; text-align: center; padding: var(--space-6) var(--space-8); border-radius: var(--radius-xl); background: var(--color-surface-raised); box-shadow: var(--shadow-lg); }
+.demo-drop-guide-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: var(--radius-full); background: var(--color-accent-subtle); color: var(--color-accent); }
+.demo-drop-guide-title { font-size: var(--text-xl); font-weight: var(--weight-bold); color: var(--color-text); }
+.demo-drop-guide-sub { font-size: var(--text-sm); color: var(--color-text-secondary); line-height: 1.5; }
+.demo-drop-guide .only-narrow { display: none; }
+/* 파일이 오른쪽 아래(서류 창)에서 가운데로 날아오는 모양 */
+.demo-drop-guide-ghost {
+  position: absolute; right: -40px; bottom: -70px; display: inline-flex; align-items: center; gap: 4px; padding: 6px 8px;
+  border-radius: var(--radius-md); background: var(--color-surface-raised); border: 1px solid var(--color-border-strong); box-shadow: var(--shadow-md);
+  color: var(--tone-danger-fg); animation: demo-guide-fly 2.4s var(--ease-out) infinite;
+}
+.demo-drop-guide-ghost b { min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--radius-full); background: var(--color-accent); color: var(--color-on-brand, #fff); font-size: 11px; display: grid; place-items: center; }
+@keyframes demo-guide-fly {
+  0% { transform: translate(120px, 90px); opacity: 0; }
+  15% { opacity: 1; }
+  70% { transform: translate(-60px, -40px); opacity: 1; }
+  100% { transform: translate(-60px, -40px); opacity: 0; }
+}
+@keyframes demo-guide-pulse {
+  0%, 100% { border-color: color-mix(in srgb, var(--color-accent) 35%, transparent); }
+  50% { border-color: color-mix(in srgb, var(--color-accent) 75%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .demo-drop-guide, .demo-drop-guide-ghost { animation: none; }
+  .demo-drop-guide-ghost { display: none; }
+}
+@media (max-width: 767px) {
+  .demo-drop-guide { inset: var(--space-2); align-items: start; padding-top: 18vh; }
+  .demo-drop-guide-card { padding: var(--space-4) var(--space-5); }
+  .demo-drop-guide-title { font-size: var(--text-lg); }
+  .demo-drop-guide .only-wide, .demo-drop-guide-ghost { display: none; }
+  .demo-drop-guide .only-narrow { display: inline; }
 }
