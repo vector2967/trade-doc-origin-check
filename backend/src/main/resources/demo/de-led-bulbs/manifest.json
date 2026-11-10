@@ -1,0 +1,37 @@
+{
+  "id": "de-led-bulbs",
+  "name": "독일 · LED 전구",
+  "source": "set02",
+  "files": [
+    {
+      "name": "01_인보이스.pdf",
+      "hint_type": "인보이스",
+      "size": 353247,
+      "sha256": "e7bb62af2740574a70a0e991a456846d6f4de09a606f13985d783d89eca970db"
+    },
+    {
+      "name": "02_패킹리스트.pdf",
+      "hint_type": "패킹리스트",
+      "size": 143268,
+      "sha256": "6c49d1abd1262f0a9ac1ba22369d060bb7dc941bfa3935849e8c8f9c8bfc0120"
+    },
+    {
+      "name": "03_BL.pdf",
+      "hint_type": "B/L",
+      "size": 285864,
+      "sha256": "7dda99f5e58c37bed63e0ae27ab9b500d0fc1b92b471bf75cafd34b7323e9222"
+    },
+    {
+      "name": "04_원산지확인서.pdf",
+      "hint_type": "원산지확인서",
+      "size": 226556,
+      "sha256": "afe85b9ec0cf6ec525ec4c7d5351cd5bcb54939d19d19ad45adb0132f4cdb693"
+    },
+    {
+      "name": "05_수출신고필증.pdf",
+      "hint_type": "수출신고필증",
+      "size": 321816,
+      "sha256": "623b5c16ee064321f28cdc03cf4989ac77d52ea69ffcca28cfec80fc7d84c881"
+    }
+  ]
+}

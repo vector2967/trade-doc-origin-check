@@ -1,0 +1,43 @@
+{
+  "id": "vn-led-monitor",
+  "name": "베트남 · LED 모니터",
+  "source": "set11",
+  "files": [
+    {
+      "name": "01_인보이스.pdf",
+      "hint_type": "인보이스",
+      "size": 248294,
+      "sha256": "96ebeef399f73101b288b5ade78a1e3bc8c8fc8233707645719ce09eca3c4753"
+    },
+    {
+      "name": "02_패킹리스트(촬영본).pdf",
+      "hint_type": "패킹리스트",
+      "size": 79421,
+      "sha256": "d2b369a25c1cbb01b5b444b7c798adacaad322e76d48ee50eb210caa6f4d8af1"
+    },
+    {
+      "name": "03_BL.pdf",
+      "hint_type": "B/L",
+      "size": 286843,
+      "sha256": "59d353448e973dcde97b3fb82c3dd586f0373d20b6024f36c83bd6af31ac2f1d"
+    },
+    {
+      "name": "04_원산지증명서.pdf",
+      "hint_type": "원산지증명서",
+      "size": 170784,
+      "sha256": "622061b5103bc1b3681ccf7d853bffeba22c998918ba1ba5c82096e3d108d5a3"
+    },
+    {
+      "name": "05_원산지확인서.pdf",
+      "hint_type": "원산지확인서",
+      "size": 227688,
+      "sha256": "14ad9bd2fb4b2b03d1796b56b364eb5ba0053554edac748a4cee17d3ec71d73c"
+    },
+    {
+      "name": "06_수출신고필증.pdf",
+      "hint_type": "수출신고필증",
+      "size": 321971,
+      "sha256": "03e658bd3d0dbfbd2f8680be646dd936c8a207336a79427aeb73ccc658c0c45a"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "kl-mackerel",
+  "name": "말레이시아 · 냉동 고등어",
+  "source": "set04",
+  "files": [
+    {
+      "name": "01_원산지증명서.pdf",
+      "hint_type": "원산지증명서",
+      "size": 172065,
+      "sha256": "20d643f5c905993a76165c3858e5b9d0349c6aa85fae3e545179af89294baf18"
+    },
+    {
+      "name": "02_수출신고필증.pdf",
+      "hint_type": "수출신고필증",
+      "size": 319743,
+      "sha256": "e4db7de38d63b5017739d97343924151c62c70d435a228a6afb278ec9022ae7d"
+    },
+    {
+      "name": "03_인보이스.pdf",
+      "hint_type": "인보이스",
+      "size": 249285,
+      "sha256": "8396b3a1b8c556df23748be30edb3fd7cac1523d3359978901f867f37baaead2"
+    },
+    {
+      "name": "04_원산지확인서.pdf",
+      "hint_type": "원산지확인서",
+      "size": 226988,
+      "sha256": "2e71264ce4343e7dd67e6933dd4e4b266cd0411326f50be2833532fe52438d1e"
+    },
+    {
+      "name": "05_BL.pdf",
+      "hint_type": "B/L",
+      "size": 286069,
+      "sha256": "a25f6392b358552b1115ca24899b071388036e19138a50c7332dea95bc0f1fc4"
+    },
+    {
+      "name": "06_패킹리스트.pdf",
+      "hint_type": "패킹리스트",
+      "size": 235159,
+      "sha256": "d37eb768a41c1dbf07bfa4e012aa9815a68e265a7d21ac819f37e3a622872708"
+    }
+  ]
+}

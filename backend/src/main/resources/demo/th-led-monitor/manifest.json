@@ -1,0 +1,43 @@
+{
+  "id": "th-led-monitor",
+  "name": "태국 · LED 모니터 외 1건",
+  "source": "set03",
+  "files": [
+    {
+      "name": "01_인보이스.pdf",
+      "hint_type": "인보이스",
+      "size": 290802,
+      "sha256": "6c6f3ce510bf437369843fd2415865c18ab8f4e982170991a06038123fa2a5d2"
+    },
+    {
+      "name": "02_패킹리스트.pdf",
+      "hint_type": "패킹리스트",
+      "size": 144783,
+      "sha256": "9318de35cfc6bc65f92696c66847a8945965200edd426a4f804941c57ff02058"
+    },
+    {
+      "name": "03_BL.pdf",
+      "hint_type": "B/L",
+      "size": 287277,
+      "sha256": "699953fa28c351869593bddf9a2f467dc220fd9f25c492cd94e7d42f38f9a6e3"
+    },
+    {
+      "name": "04_원산지증명서.pdf",
+      "hint_type": "원산지증명서",
+      "size": 172392,
+      "sha256": "e9a8338b927b101158b4e5f20f0acd8f99f1f2949a470285dc6cd7127928f637"
+    },
+    {
+      "name": "05_원산지확인서.pdf",
+      "hint_type": "원산지확인서",
+      "size": 229437,
+      "sha256": "e0cda58d1442063b8565bc65c43b86407f321830e6f288d6352b958dcf5bb2bd"
+    },
+    {
+      "name": "06_수출신고필증.pdf",
+      "hint_type": "수출신고필증",
+      "size": 333584,
+      "sha256": "f8332eb7a31c7004db3bb5a02658479ed6c9ede7353b4e40caa369ca038aa614"
+    }
+  ]
+}

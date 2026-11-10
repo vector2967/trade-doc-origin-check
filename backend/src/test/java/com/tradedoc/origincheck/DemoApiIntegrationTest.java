@@ -31,6 +31,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -132,6 +133,47 @@ class DemoApiIntegrationTest {
                 .andReturn();
         mvc.perform(auth(get("/api/v1/auth/me"), body(r).get("access_token").asString()))
                 .andExpect(jsonPath("$.demo").value(false));
+    }
+
+    // ---------- 2. 체험용 서류 ----------
+
+    @Test
+    void 체험용_서류_목록은_인증_없이_4세트() throws Exception {
+        mvc.perform(get("/api/v1/demo/samples"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sets.length()").value(4))
+                .andExpect(jsonPath("$.sets[0].id").value("kl-mackerel"))
+                .andExpect(jsonPath("$.sets[0].name").value("말레이시아 · 냉동 고등어"))
+                .andExpect(jsonPath("$.sets[0].files.length()").value(6))
+                .andExpect(jsonPath("$.sets[0].files[0].name").value("01_원산지증명서.pdf"))
+                .andExpect(jsonPath("$.sets[0].files[0].hint_type").value("원산지증명서"))
+                .andExpect(jsonPath("$.sets[0].files[0].size").value(172065))
+                .andExpect(jsonPath("$.sets[0].files[0].sha256").doesNotExist())
+                .andExpect(jsonPath("$.sets[3].id").value("de-led-bulbs"))
+                .andExpect(jsonPath("$.sets[3].files.length()").value(5));
+    }
+
+    @Test
+    void 체험용_PDF는_하루_캐시하고_없는_이름은_404() throws Exception {
+        MvcResult r = mvc.perform(get("/api/v1/demo/samples/{set}/{name}", "kl-mackerel", "03_인보이스.pdf"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "application/pdf"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "max-age=86400, public"))
+                .andReturn();
+        assertThat(r.getResponse().getContentAsByteArray()).hasSize(249285).startsWith("%PDF".getBytes());
+
+        // 자모가 풀린(NFD) 이름도 같은 파일
+        mvc.perform(get("/api/v1/demo/samples/{set}/{name}", "kl-mackerel",
+                        java.text.Normalizer.normalize("03_인보이스.pdf", java.text.Normalizer.Form.NFD)))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/demo/samples/{set}/{name}", "kl-mackerel", "99_없는파일.pdf"))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/demo/samples/{set}/{name}", "nope", "03_인보이스.pdf"))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/demo/samples/{set}/{name}", "kl-mackerel", "..%2Fmanifest.json"))
+                .andExpect(status().is4xxClientError()); // 요청 방화벽이 400 으로 먼저 막는다
+        mvc.perform(get("/api/v1/demo/samples/{set}/{name}", "kl-mackerel", "manifest.json"))
+                .andExpect(status().isNotFound());
     }
 
     // ---------- 도우미 ----------
