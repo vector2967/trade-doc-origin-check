@@ -50,6 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.jwt.expires-min=60",
         "app.demo.tokens-per-ip-hour=1000",   // 테스트끼리 같은 IP 를 쓰므로 넉넉히. 제한 자체는 단위 테스트에서 본다
         "app.demo.cleanup-interval-ms=3600000",
+        "app.demo.cleanup-initial-delay-ms=3600000",
 })
 @AutoConfigureMockMvc
 @Testcontainers
@@ -85,6 +86,10 @@ class DemoApiIntegrationTest {
     OriginCheckWorker worker;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    com.tradedoc.origincheck.demo.DemoCleanup cleanup;
+    @Autowired
+    com.tradedoc.origincheck.check.storage.FileStorage storage;
 
     @BeforeEach
     void reset() {
@@ -291,6 +296,54 @@ class DemoApiIntegrationTest {
         mvc.perform(auth(get("/api/v1/origin-checks/" + c), tc)).andExpect(jsonPath("$.queue_position").value(1));
     }
 
+    // ---------- 5. 정리 작업 ----------
+
+    @Test
+    void 만료된_체험_사용자는_점검_건_원본_파일_agent_파일까지_지운다() throws Exception {
+        String token = demoToken();
+        String email = email(token);
+        long done = upload(token, sample("th-led-monitor", "01_인보이스.pdf"), sample("th-led-monitor", "03_BL.pdf"));
+        worker.tick(); // 제출 → agent 파일이 생긴다
+        String agentFile = jdbc.queryForObject("select agent_file_id from origin_checks where id = ?", String.class, done);
+        assertThat(agentFile).isNotNull();
+        java.util.List<String> keys = jdbc.queryForList(
+                "select file_key from origin_checks where id = ? union select file_key from origin_check_files where check_id = ?",
+                String.class, done, done);
+        assertThat(keys).hasSize(3); // 합친 PDF + 원본 2개
+        keys.forEach(k -> assertThat(Files.exists(storage.path(k))).isTrue());
+
+        String other = demoToken(); // 아직 만료 안 된 체험 사용자는 그대로
+        long kept = upload(other, sample("th-led-monitor", "02_패킹리스트.pdf"));
+
+        expire(email);
+        cleanup.run();
+
+        assertThat(jdbc.queryForObject("select count(*) from users where email = ?", Integer.class, email)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from origin_checks where id = ?", Integer.class, done)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from origin_check_files where check_id = ?", Integer.class, done)).isZero();
+        keys.forEach(k -> assertThat(Files.exists(storage.path(k))).isFalse());
+        assertThat(AGENT.deleted).contains(agentFile);
+        assertThat(jdbc.queryForObject("select count(*) from origin_checks where id = ?", Integer.class, kept)).isOne();
+        // 지운 사용자의 토큰은 더는 쓸 수 없다
+        mvc.perform(auth(get("/api/v1/auth/me"), token)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void agent_파일을_못_지우면_그_사용자는_다음_차례로_미룬다() throws Exception {
+        String token = demoToken();
+        long id = upload(token, sample("de-led-bulbs", "01_인보이스.pdf"));
+        worker.tick();
+        expire(email(token));
+
+        AGENT.deleteError = new com.tradedoc.origincheck.agent.AgentException("Upstage 파일 삭제 실패 (HTTP 503)");
+        cleanup.run();
+        assertThat(jdbc.queryForObject("select count(*) from origin_checks where id = ?", Integer.class, id)).isOne();
+
+        AGENT.deleteError = null;
+        cleanup.run();
+        assertThat(jdbc.queryForObject("select count(*) from origin_checks where id = ?", Integer.class, id)).isZero();
+    }
+
     // ---------- 도우미 ----------
 
     String signup() throws Exception {
@@ -338,6 +391,11 @@ class DemoApiIntegrationTest {
     long upload(String token, MockMultipartFile... files) throws Exception {
         MvcResult r = mvc.perform(multipartUpload(token, files)).andExpect(status().isAccepted()).andReturn();
         return body(r).get("id").asLong();
+    }
+
+    /** 앱은 UTC 로 저장하므로 DB 의 UTC 시계로 1분 전을 넣는다(Timestamp 는 JVM 시간대로 바뀐다) */
+    void expire(String email) {
+        jdbc.update("UPDATE users SET expires_at = UTC_TIMESTAMP(6) - INTERVAL 1 MINUTE WHERE email = ?", email);
     }
 
     int used(String token) throws Exception {

@@ -16,6 +16,8 @@ public interface OriginCheckRepository extends JpaRepository<OriginCheck, Long> 
 
     Optional<OriginCheck> findByIdAndUserId(Long id, Long userId);
 
+    List<OriginCheck> findAllByUserId(Long userId);
+
     List<OriginCheck> findTop20ByStatusOrderByIdAsc(CheckStatus status);
 
     /** 제출할 차례가 된 건(재시도 대기 중인 건은 빼고) */
