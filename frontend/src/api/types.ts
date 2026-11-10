@@ -41,6 +41,23 @@ export interface MeResponse {
   name: string
   company: string | null
   expires_at: string
+  /** 체험 사용자(계정 없이 들어온 사람). 이전 서버는 안 보내므로 없으면 false */
+  demo?: boolean
+}
+
+/** GET /api/v1/demo/samples — 체험용 서류 폴더 */
+export interface DemoSampleFile {
+  name: string
+  size: number
+  hint_type: string | null
+}
+export interface DemoSampleSet {
+  id: string
+  name: string
+  files: DemoSampleFile[]
+}
+export interface DemoSamplesResponse {
+  sets: DemoSampleSet[]
 }
 
 // ---- enum ----
@@ -121,6 +138,8 @@ export interface OriginCheckDetail {
   extracted: AgentExtracted
   extracted_meta: AgentExtractedMeta
   error: CheckError | null
+  /** 체험 건이 Upstage 제출을 기다리는 순번(1부터). 체험 건이 아니거나 대기 중이 아니면 null/없음 */
+  queue_position?: number | null
 }
 
 export interface AgentJudge {

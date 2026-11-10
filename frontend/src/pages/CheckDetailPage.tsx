@@ -4,6 +4,7 @@ import { ApiError } from '../api/client'
 import { originChecksApi } from '../api/originChecks'
 import type { AgentExtractedMeta, ExtractNode, FieldMeta, ItemCheck, OriginCheckDetail, OriginCheckSummary } from '../api/types'
 import { isBusy } from '../checks/groups'
+import { useAuth } from '../auth/useAuth'
 import { useChecks } from '../checks/useChecks'
 import { usePanel, type PanelKind } from '../checks/usePanel'
 import { COLLAPSE_ACTIVE_GROUP, keepListParams } from '../checks/listParams'
@@ -44,6 +45,7 @@ function actionMessage(e: unknown) {
  */
 export function CheckDetailPage() {
   const { checkId } = useParams()
+  const { user } = useAuth()
   const { data, error, loading, refresh } = useOriginCheck(checkId)
   const { filtered, reload, doneAt, setDone, view, patchLocal, removeLocal } = useChecks()
   const { panel, code, page, field, focusKey, open, close, toggle } = usePanel()
@@ -221,7 +223,7 @@ export function CheckDetailPage() {
 
                 <DetailHeader detail={data} doneAt={doneTime} />
 
-                {isBusy(data) && <BusyState status={data.status} />}
+                {isBusy(data) && <BusyState status={data.status} queue={data.queue_position ?? null} demo={user?.demo === true} />}
                 {data.status === 'failed' && <FailedState detail={data} retrying={acting === 'retry'} disabled={acting != null} onRetry={retry} onReupload={openNew} />}
                 {completed && <CompletedState detail={data} onOpen={open} />}
                 {(data.files?.length ?? 0) > 0 && <FileList detail={data} onOpenPage={(p) => open('pdf', { page: p })} />}
@@ -608,7 +610,7 @@ function KvRow({ field, label, value, meta, onOpenPage }: { field: string; label
 /* ───────── 처리 중 · 실패 ───────── */
 const STEPS = ['PDF 접수', '서류 분류', '값 추출', '서류 대조', '판정']
 
-function BusyState({ status }: { status: string }) {
+function BusyState({ status, queue, demo }: { status: string; queue: number | null; demo: boolean }) {
   const at = status === 'queued' ? 0 : 2
   return (
     <section className="busy" aria-live="polite">
@@ -616,7 +618,12 @@ function BusyState({ status }: { status: string }) {
         <span className="busy-icon"><span className="status-ring tone-info is-busy" /></span>
         <div>
           <p className="busy-title">{status === 'queued' ? '점검 순서를 기다리고 있어요' : 'AI가 서류를 점검하고 있어요'}</p>
-          <p className="busy-sub">다른 심사를 보고 있어도 점검은 계속됩니다. 끝나면 이 화면이 저절로 바뀌어요.</p>
+          <p className="busy-sub">
+            {queue != null && status === 'queued' && <><b>체험 대기열 {queue}번째</b> · </>}
+            {demo
+              ? '보통 1~2분 걸려요. 그사이 체험용 서류 창에서 다른 폴더도 올려 보세요.'
+              : '다른 심사를 보고 있어도 점검은 계속됩니다. 끝나면 이 화면이 저절로 바뀌어요.'}
+          </p>
         </div>
       </div>
       <ol className="steps">

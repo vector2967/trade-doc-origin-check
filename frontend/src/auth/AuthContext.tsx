@@ -39,6 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await authApi.me())
   }, [])
 
-  const value = useMemo(() => ({ user, loading, login, signup, logout }), [user, loading, login, signup, logout])
+  const startDemo = useCallback(async () => {
+    const { access_token } = await authApi.demo()
+    tokenStore.set(access_token)
+    setUser(await authApi.me())
+  }, [])
+
+  const value = useMemo(() => ({ user, loading, login, signup, startDemo, logout }), [user, loading, login, signup, startDemo, logout])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
+import { ApiError } from '../api/client'
 import { useAuth } from '../auth/useAuth'
 import { AuthModal, type AuthMode } from '../components/AuthModal'
 import { DocChip } from '../components/DocChip'
@@ -80,13 +81,29 @@ const GROUPS_DEMO = [
 const SAMPLE_CODE = CODE_BASIS.CO_INVOICE_NO_MISMATCH
 
 export function LandingPage() {
-  const { user, loading } = useAuth()
-  const [modal, setModal] = useState<AuthMode | null>(null)
+  const { user, loading, startDemo } = useAuth()
+  // 체험 모드 띠의 [가입하기] 로 오면 가입 창을 바로 연다
+  const initial = (useLocation().state as { auth?: AuthMode } | null)?.auth ?? null
+  const [modal, setModal] = useState<AuthMode | null>(initial)
+  const [demoBusy, setDemoBusy] = useState(false)
+  const [demoError, setDemoError] = useState<string | null>(null)
 
   if (!loading && user) return <Navigate to="/checks" replace />
 
   const signup = () => setModal('signup')
   const login = () => setModal('login')
+  // 계정 없이 체험: 임시 사용자 토큰을 받으면 위 Navigate 가 심사목록으로 보낸다
+  const demo = async () => {
+    if (demoBusy) return
+    setDemoBusy(true)
+    setDemoError(null)
+    try {
+      await startDemo()
+    } catch (e) {
+      setDemoError(e instanceof ApiError && e.status !== 404 ? e.message : '지금은 체험하기를 쓸 수 없어요. 잠시 뒤에 다시 시도해 주세요.')
+      setDemoBusy(false)
+    }
+  }
 
   return (
     <div className="landing">
@@ -102,6 +119,7 @@ export function LandingPage() {
           <div className="ld-head-actions">
             <ThemeToggle />
             <button type="button" className="btn-ghost ld-login" onClick={login}>로그인</button>
+            <button type="button" className="ld-demo-head" onClick={demo} disabled={demoBusy}>체험하기</button>
             <button type="button" className="btn-primary" onClick={signup}>시작하기</button>
           </div>
         </div>
@@ -127,8 +145,11 @@ export function LandingPage() {
                 <button type="button" className="btn-primary btn-lg ld-cta-main" onClick={signup}>
                   시작하기 <IconArrowRight size={18} />
                 </button>
-                <a href="#how" className="btn btn-lg ld-cta-sub">점검 과정 보기</a>
+                <button type="button" className="btn btn-lg ld-cta-sub" onClick={demo} disabled={demoBusy}>
+                  {demoBusy ? '여는 중…' : '가입 없이 체험하기'}
+                </button>
               </div>
+              {demoError && <p className="ld-demo-error" role="alert">{demoError}</p>}
               <ul className="ld-trust">
                 <li><IconCheck size={15} /> PDF 여러 개를 한 번에</li>
                 <li><IconCheck size={15} /> 판정 근거·관련 법령</li>
@@ -325,7 +346,7 @@ export function LandingPage() {
               </div>
               <div className="ld-final-actions">
                 <button type="button" className="btn-lg ld-final-btn" onClick={signup}>시작하기 <IconArrowRight size={18} /></button>
-                <button type="button" className="btn-lg ld-final-ghost" onClick={login}>로그인</button>
+                <button type="button" className="btn-lg ld-final-ghost" onClick={demo} disabled={demoBusy}>가입 없이 체험하기</button>
               </div>
             </div>
           </div>

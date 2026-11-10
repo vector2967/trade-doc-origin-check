@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { demoApi } from '../api/demo'
+import { DemoCard } from '../demo/DemoCard'
+import { DemoExplorer } from '../demo/DemoExplorer'
+import { isDemoDrag, readDemoDrag, type DemoDragPayload } from '../demo/demoDrag'
+import { loadDemoSamples } from '../demo/useDemoSamples'
 import { Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { ChecksProvider } from '../checks/ChecksContext'
 import { useChecks } from '../checks/useChecks'
 import { CheckSidebar } from './CheckSidebar'
 import { keepListParams } from '../checks/listParams'
-import { IconUpload } from './icons'
+import { IconFolder, IconUpload } from './icons'
 import { NewCheckModal, type CreatedCheck, type IncomingFiles } from './NewCheckModal'
 import { Tutorial } from './Tutorial'
 import { tutorialSeen } from '../utils/tutorialSeen'
@@ -36,8 +41,9 @@ function Shell() {
   const { search } = useLocation()
   const checkId = useMatch('/checks/:checkId')?.params.checkId
   const inDetail = checkId != null
-  // 처음 로그인한 사용자에게 한 번만 튜토리얼 (왼쪽 아래 ? 로 다시 보기)
-  const [showTutorial, setShowTutorial] = useState(() => user != null && !tutorialSeen(user.id))
+  const demo = user?.demo === true
+  // 처음 로그인한 사용자에게 한 번만 튜토리얼 (왼쪽 아래 ? 로 다시 보기). 체험 사용자는 서류 창의 안내가 대신한다
+  const [showTutorial, setShowTutorial] = useState(() => user != null && !demo && !tutorialSeen(user.id))
 
   // 상세 ↔ 좌측 선택 맞추기
   useEffect(() => {
@@ -70,6 +76,8 @@ function Shell() {
     navigate(`/checks/${id}${keepListParams(`?${p.toString()}`)}`, { replace: true })
   }, [checkId, items, filtered, userIntent, consumeIntent, view, q, result, viewOf, navigate, search])
 
+  const explorer = useExplorerState(demo)
+  const { markDropped, minimize: minimizeExplorer } = explorer
   const onCreated = useCallback(
     (c: CreatedCheck) => {
       addLocal({
@@ -83,16 +91,38 @@ function Shell() {
       const qs = keepListParams(`?${p.toString()}`)
       navigate(`/checks/${c.id}${qs}`)
       reload()
+      // 체험: 진행 화면이 가리지 않게 서류 창을 접어 둔다
+      if (demo) minimizeExplorer()
     },
-    [addLocal, navigate, reload, search],
+    [addLocal, navigate, reload, search, demo, minimizeExplorer],
   )
   const [showNew, setShowNew] = useState(false)
   const [incoming, setIncoming] = useState<IncomingFiles | null>(null)
+  const [demoLoading, setDemoLoading] = useState(false)
+  const [demoError, setDemoError] = useState<string | null>(null)
+  // 체험용 서류 창에서 끌어 놓거나 [점검 시작]을 누르면: PDF 를 받아 새 점검 창을 그 파일로 연다
+  const startDemoFiles = useCallback(async (p: DemoDragPayload) => {
+    setDemoLoading(true)
+    setDemoError(null)
+    try {
+      const set = (await loadDemoSamples()).find((s) => s.id === p.setId)
+      const files = await Promise.all(p.files.map((name) => demoApi.file(p.setId, name)))
+      const hints = Object.fromEntries((set?.files ?? []).map((f) => [f.name, f.hint_type]))
+      markDropped()
+      setIncoming({ files, hints, nonce: Date.now() })
+      setShowNew(true)
+    } catch {
+      setDemoError('체험용 서류를 불러오지 못했어요. 다시 시도해 주세요.')
+    } finally {
+      setDemoLoading(false)
+    }
+  }, [markDropped])
   const dragging = useGlobalFileDrop(
     useCallback((files: File[]) => {
       setIncoming({ files, nonce: Date.now() })
       setShowNew(true)
     }, []),
+    demo ? startDemoFiles : null,
   )
   // 튜토리얼 상세 장에서 보여 줄 예시: 고칠 게 있는 완료 심사 → 아무 완료 심사
   const done = filtered.filter((c) => c.status === 'completed')
@@ -116,6 +146,17 @@ function Shell() {
   return (
     <div className={`app-shell${inDetail ? ' is-detail' : ''}`}>
       <CheckSidebar
+        extra={demo && user ? (
+          <DemoCard
+            expiresAt={user.expires_at}
+            used={items?.length ?? 0}
+            onOpenExplorer={explorer.open}
+            onSignup={() => {
+              logout()
+              navigate('/', { state: { auth: 'signup' } })
+            }}
+          />
+        ) : undefined}
         userName={user?.name ?? ''}
         company={user?.company ?? null}
         onNew={openNew}
@@ -139,6 +180,20 @@ function Shell() {
         />
       )}
       {showNew && <NewCheckModal incoming={incoming} onClose={() => setShowNew(false)} onCreated={onCreated} />}
+      {demo && !showNew && explorer.state === 'open' && (
+        <DemoExplorer onMinimize={explorer.minimize} onClose={explorer.close} onStart={startDemoFiles} showHint={!explorer.dropped} />
+      )}
+      {demo && !showNew && explorer.state === 'min' && (
+        <button type="button" className="demo-explorer-chip" onClick={explorer.open}>
+          <IconFolder size={15} /> 체험용 서류
+        </button>
+      )}
+      {(demoLoading || demoError) && (
+        <div className={`demo-toast${demoError ? ' is-error' : ''}`} role="status">
+          {demoError ?? '체험용 서류를 불러오는 중…'}
+          {demoError && <button type="button" className="btn-sm btn-ghost" onClick={() => setDemoError(null)}>닫기</button>}
+        </div>
+      )}
       {dragging && !showNew && (
         <div className="drop-overlay" aria-hidden>
           <div className="drop-overlay-card">
@@ -152,12 +207,15 @@ function Shell() {
   )
 }
 
-/** 창 전체에서 파일 끌기를 감지한다. 놓으면 onDrop(파일들). 브라우저가 PDF 를 열어 버리는 것도 막는다 */
-function useGlobalFileDrop(onDrop: (files: File[]) => void) {
+/**
+ * 창 전체에서 파일 끌기를 감지한다. 놓으면 onDrop(파일들). 브라우저가 PDF 를 열어 버리는 것도 막는다.
+ * onDemoDrop 이 있으면(체험 사용자) 체험용 서류 창에서 끌어 온 묶음도 받는다. 창 위에 다시 놓으면 무시한다.
+ */
+function useGlobalFileDrop(onDrop: (files: File[]) => void, onDemoDrop: ((p: DemoDragPayload) => void) | null) {
   const [dragging, setDragging] = useState(false)
   const depth = useRef(0)
   useEffect(() => {
-    const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files')
+    const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files') || (onDemoDrop != null && isDemoDrag(e))
     const enter = (e: DragEvent) => {
       if (!hasFiles(e)) return
       depth.current += 1
@@ -176,6 +234,12 @@ function useGlobalFileDrop(onDrop: (files: File[]) => void) {
       e.preventDefault()
       depth.current = 0
       setDragging(false)
+      if (onDemoDrop && isDemoDrag(e)) {
+        if ((e.target as Element | null)?.closest?.('.demo-explorer')) return
+        const p = readDemoDrag(e)
+        if (p) onDemoDrop(p)
+        return
+      }
       const files = Array.from(e.dataTransfer?.files ?? [])
       if (files.length) onDrop(files)
     }
@@ -198,6 +262,42 @@ function useGlobalFileDrop(onDrop: (files: File[]) => void) {
       window.removeEventListener('dragover', over)
       window.removeEventListener('drop', drop)
     }
-  }, [onDrop])
+  }, [onDrop, onDemoDrop])
   return dragging
+}
+
+type ExplorerView = 'open' | 'min' | 'closed'
+const EXPLORER_KEY = 'origin-check.demo.explorer'
+const DROPPED_KEY = 'origin-check.demo.dropped'
+const readSession = (k: string) => {
+  try {
+    return sessionStorage.getItem(k)
+  } catch {
+    return null
+  }
+}
+const writeSession = (k: string, v: string) => {
+  try {
+    sessionStorage.setItem(k, v)
+  } catch {
+    /* noop */
+  }
+}
+
+/** 체험용 서류 창: 처음엔 열려 있고, 최소화·닫기 상태와 '한 번 끌어 놓았는지'를 이 탭에서 기억한다 */
+function useExplorerState(demo: boolean) {
+  const [state, setState] = useState<ExplorerView>(() => (readSession(EXPLORER_KEY) as ExplorerView | null) ?? 'open')
+  const [dropped, setDropped] = useState(() => readSession(DROPPED_KEY) === '1')
+  const set = useCallback((v: ExplorerView) => {
+    setState(v)
+    writeSession(EXPLORER_KEY, v)
+  }, [])
+  const open = useCallback(() => set('open'), [set])
+  const minimize = useCallback(() => set('min'), [set])
+  const close = useCallback(() => set('closed'), [set])
+  const markDropped = useCallback(() => {
+    setDropped(true)
+    writeSession(DROPPED_KEY, '1')
+  }, [])
+  return { state: demo ? state : 'closed', dropped, open, minimize, close, markDropped }
 }

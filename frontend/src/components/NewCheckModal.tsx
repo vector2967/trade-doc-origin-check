@@ -3,6 +3,7 @@ import { ApiError } from '../api/client'
 import { originChecksApi } from '../api/originChecks'
 import { DOC_TYPES, MISSING_EFFECT, hintFromName, type DocType } from '../data/docTypes'
 import { countPages } from '../utils/pdfjs'
+import { isDemoDrag } from '../demo/demoDrag'
 import { DocChip } from './DocChip'
 import { IconAlert, IconCheck, IconFile, IconUpload, IconX } from './icons'
 
@@ -24,8 +25,11 @@ interface Item {
 export interface IncomingFiles {
   files: File[]
   nonce: number
+  /** 파일 이름 → 서류 종류 (체험용 서류처럼 미리 아는 경우). 없으면 이름으로 짐작한다 */
+  hints?: Record<string, string | null>
 }
 
+const knownHint = (v: string | null | undefined) => (DOC_TYPES as readonly string[]).includes(v ?? '') ? (v as DocType) : null
 const isPdf = (f: File) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name)
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)}MB`
 
@@ -49,7 +53,7 @@ export function NewCheckModal({ onClose, onCreated, incoming }: { onClose: () =>
     itemsRef.current = items
   }, [items])
 
-  const add = useCallback((list: File[]) => {
+  const add = useCallback((list: File[], hints?: Record<string, string | null>) => {
     const current = itemsRef.current
     const rejected: string[] = []
     const accepted: Item[] = []
@@ -62,7 +66,7 @@ export function NewCheckModal({ onClose, onCreated, incoming }: { onClose: () =>
       else if (current.some((it) => it.file.name === f.name && it.file.size === f.size)) rejected.push(`${f.name}: 이미 올렸어요`)
       else {
         total += f.size
-        accepted.push({ key: `${f.name}-${f.size}-${f.lastModified}-${Math.random()}`, file: f, pages: 'loading', hint: hintFromName(f.name) })
+        accepted.push({ key: `${f.name}-${f.size}-${f.lastModified}-${Math.random()}`, file: f, pages: 'loading', hint: knownHint(hints?.[f.name]) ?? hintFromName(f.name) })
       }
     }
     setNotes(rejected)
@@ -79,7 +83,7 @@ export function NewCheckModal({ onClose, onCreated, incoming }: { onClose: () =>
   useEffect(() => {
     if (!incoming?.files.length || handled.current === incoming.nonce) return
     handled.current = incoming.nonce
-    add(incoming.files)
+    add(incoming.files, incoming.hints)
   }, [incoming, add])
 
   useEffect(() => {
@@ -90,8 +94,10 @@ export function NewCheckModal({ onClose, onCreated, incoming }: { onClose: () =>
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault()
-    e.stopPropagation()
     setOver(false)
+    // 체험용 서류 창에서 끌어 온 묶음은 PDF 를 받아야 하므로 화면 전체 처리(Layout)로 넘긴다
+    if (isDemoDrag(e.nativeEvent)) return
+    e.stopPropagation()
     add(Array.from(e.dataTransfer.files))
   }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useMatch } from 'react-router-dom'
 import type { OriginCheckSummary } from '../api/types'
 import { RESULT_FILTERS, type CheckGroup, type GroupKey } from '../checks/groups'
@@ -14,7 +14,9 @@ import { ThemeToggle } from './ThemeToggle'
  * 왼쪽 사이드바: 할 일 기준 묶음(조치 필요 · 검토 필요 · 점검 중 · 특혜 적용) + 검색.
  * 한 줄 = 바이어·대표 품목 / 송장번호·목적국. 문제 내용은 상세에서 본다. (사용자: 수출기업 FTA 담당자) 색은 문제 표시 하나에만 쓴다.
  */
-export function CheckSidebar({ userName, company, onNew, onLogout, onHelp }: {
+export function CheckSidebar({ userName, company, onNew, onLogout, onHelp, extra }: {
+  /** 사용자 칸 바로 위에 끼울 것 (체험 모드 카드) */
+  extra?: ReactNode
   userName: string
   company: string | null
   onNew: () => void
@@ -161,6 +163,8 @@ export function CheckSidebar({ userName, company, onNew, onLogout, onHelp }: {
         {truncated && <p className="sb-note">최근 500건까지만 보여 줍니다.</p>}
         {notice && <p className="sb-notice error" role="alert">{notice}</p>}
       </div>
+
+      {extra}
 
       <div className="sb-foot">
         <span className="avatar" aria-hidden>{userName.slice(0, 1) || '?'}</span>

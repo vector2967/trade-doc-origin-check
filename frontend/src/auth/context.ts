@@ -7,6 +7,8 @@ export interface AuthState {
   loading: boolean
   login: (req: LoginRequest) => Promise<void>
   signup: (req: SignupRequest) => Promise<void>
+  /** 체험하기: 계정 없이 체험 사용자로 들어간다 */
+  startDemo: () => Promise<void>
   logout: () => void
 }
 
